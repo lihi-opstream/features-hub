@@ -27,36 +27,7 @@ const STEPS = ['Search', 'Review', 'Choose Action', 'Generate'];
 
 function OpstreamLogo() {
   return (
-    <div className="flex items-center gap-3">
-      {/* Icon: gradient rounded square with circular network symbol */}
-      <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <linearGradient id="opstreamGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#5DCCE8" />
-            <stop offset="100%" stopColor="#3CC88A" />
-          </linearGradient>
-        </defs>
-        {/* Rounded square background */}
-        <rect width="40" height="40" rx="10" fill="url(#opstreamGrad)" />
-        {/* Outer circle */}
-        <circle cx="20" cy="20" r="11" stroke="white" strokeWidth="1.8" fill="none" />
-        {/* 3 nodes at 270° (top), 30° (bottom-right), 150° (bottom-left) */}
-        {/* Top node: (20, 9) */}
-        <circle cx="20" cy="9" r="2.6" fill="white" />
-        {/* Bottom-right node: (20 + 11*cos30°, 20 + 11*sin30°) = (29.53, 25.5) */}
-        <circle cx="29.5" cy="25.5" r="2.6" fill="white" />
-        {/* Bottom-left node: (20 - 11*cos30°, 20 + 11*sin30°) = (10.47, 25.5) */}
-        <circle cx="10.5" cy="25.5" r="2.6" fill="white" />
-        {/* Lines connecting the 3 nodes */}
-        <line x1="20" y1="9" x2="29.5" y2="25.5" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
-        <line x1="20" y1="9" x2="10.5" y2="25.5" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
-        <line x1="29.5" y1="25.5" x2="10.5" y2="25.5" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
-      </svg>
-      {/* Wordmark: "opstream" in dark navy, bold lowercase */}
-      <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: '22px', color: '#171C33', letterSpacing: '-0.3px', lineHeight: 1 }}>
-        opstream
-      </span>
-    </div>
+    <img src="/opstream-logo.svg" alt="Opstream" height={44} style={{ height: '44px', width: 'auto' }} />
   );
 }
 
