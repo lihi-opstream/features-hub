@@ -10,13 +10,21 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          50: '#eef2ff',
-          100: '#e0e7ff',
-          500: '#6366f1',
-          600: '#4f46e5',
-          700: '#4338ca',
-          900: '#1e1b4b',
+          green: '#59a985',
+          'green-light': '#F2FDFB',
+          navy: '#171C33',
+          border: '#E8EAED',
+          subtle: '#FAFBFC',
+          gray: '#9BA0AB',
+          body: '#4a4a4a',
         },
+      },
+      fontFamily: {
+        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+      },
+      borderRadius: {
+        sm: '8px',
+        md: '12px',
       },
     },
   },
