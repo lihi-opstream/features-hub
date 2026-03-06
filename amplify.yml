@@ -7,6 +7,7 @@ frontend:
     build:
       commands:
         - env | grep -E "ANTHROPIC_API_KEY|SHORTCUT_API_TOKEN|FIGMA_API_TOKEN|FIGMA_TEAM_ID|FIGMA_PROJECT_ID" >> .env.production
+        - echo "NEXT_PUBLIC_ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY" >> .env.production
         - npm run build
   artifacts:
     baseDirectory: .next

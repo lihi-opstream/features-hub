@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Anthropic from '@anthropic-ai/sdk';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
@@ -10,6 +11,15 @@ import {
   AlertCircle, RefreshCw
 } from 'lucide-react';
 import type { ShortcutEpic, FigmaFile, ActionType, GuideChange } from '@/types';
+import { buildContentPrompt, buildGuideUpdatePrompt } from '@/lib/prompts';
+
+// Call Claude directly from the browser — bypasses the Amplify Lambda timeout
+// that caps server-side requests at ~10-30s (too short for full HTML generation).
+// Note: the API key is embedded in the client bundle; acceptable for an internal tool.
+const anthropic = new Anthropic({
+  apiKey: process.env.NEXT_PUBLIC_ANTHROPIC_API_KEY ?? '',
+  dangerouslyAllowBrowser: true,
+});
 
 type Step = 'search' | 'results' | 'action' | 'generating' | 'preview' | 'guide-review' | 'saved';
 
@@ -166,40 +176,36 @@ export default function Home() {
 
     setStep('generating');
 
-    // Helper: read a streaming response fully.
-    // The server encodes API errors as \x00ERROR:<msg> at the end of the stream
-    // (instead of using controller.error(), which causes a 500 on Amplify).
-    const readStream = async (res: Response): Promise<string> => {
-      if (!res.body) throw new Error('No response body');
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
+    // Stream a prompt directly to Claude from the browser and return the full text.
+    // Calls Anthropic's API directly — no Lambda, no server timeout.
+    const streamClaude = async (prompt: string, maxTokens: number): Promise<string> => {
+      const stream = anthropic.messages.stream({
+        model: 'claude-sonnet-4-6',
+        max_tokens: maxTokens,
+        messages: [{ role: 'user', content: prompt }],
+      });
       let text = '';
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        text += decoder.decode(value, { stream: true });
-        // Live-update for text types only (partial HTML is not useful)
-        if (!isHtmlType(selectedAction) && selectedAction !== 'update-userguide') {
-          setGeneratedContent(text);
+      for await (const event of stream) {
+        if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+          text += event.delta.text;
+          // Live-update for text types only (partial HTML is not useful in preview)
+          if (!isHtmlType(selectedAction) && selectedAction !== 'update-userguide') {
+            setGeneratedContent(text);
+          }
         }
       }
-      const errIdx = text.indexOf('\x00ERROR:');
-      if (errIdx !== -1) throw new Error(text.slice(errIdx + 7));
       return text;
     };
 
     if (selectedAction === 'update-userguide') {
       try {
-        const res = await fetch('/api/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: selectedAction, featureName, epics: epicsToSend, figmaFiles: figmaToSend, guideExcerpt: guideToSend, customPrompt: combinedPrompt }),
-        });
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error ?? `API error ${res.status}`);
-        }
-        const raw = await readStream(res);
+        // Fetch current guide content from server (avoids CORS with Google Docs)
+        const guideRes = await fetch('/api/userguide');
+        const guideData = await guideRes.json();
+        const currentGuide: string = guideData.content ?? '(User guide unavailable)';
+
+        const prompt = buildGuideUpdatePrompt(featureName, epicsToSend, figmaToSend, currentGuide, combinedPrompt, guideToSend);
+        const raw = await streamClaude(prompt, 8192);
         if (!raw.trim()) throw new Error('Claude returned empty content — please try again');
         const cleaned = raw.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '').trim();
         const changes: GuideChange[] = JSON.parse(cleaned);
@@ -217,17 +223,9 @@ export default function Home() {
     }
 
     try {
-      const res = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: selectedAction, featureName, epics: epicsToSend, figmaFiles: figmaToSend, guideExcerpt: guideToSend, customPrompt: combinedPrompt }),
-      });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error ?? `API error ${res.status}`);
-      }
-
-      const content = (await readStream(res)).trim();
+      const prompt = buildContentPrompt(selectedAction, featureName, epicsToSend, figmaToSend, combinedPrompt, guideToSend);
+      const maxTokens = isHtmlType(selectedAction) ? 8000 : 4096;
+      const content = (await streamClaude(prompt, maxTokens)).trim();
 
       if (!content) throw new Error('Generation returned empty content — check your API key and try again');
       setGeneratedContent(content);
