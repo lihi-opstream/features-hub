@@ -25,10 +25,26 @@ const ACTIONS: { type: ActionType; label: string; description: string; icon: Rea
 
 const STEPS = ['Search', 'Review', 'Choose Action', 'Generate'];
 
+const HTML_TYPES: ActionType[] = ['marketing-email', 'onepager', 'blog-post', 'landing-page'];
+const isHtmlType = (t: ActionType | null): boolean => HTML_TYPES.includes(t as ActionType);
+
 function OpstreamLogo() {
   return (
     <img src="/opstream-logo.svg" alt="Opstream" height={44} style={{ height: '44px', width: 'auto' }} />
   );
+}
+
+function extractRelevant(text: string, query: string, maxLen: number): string {
+  const lower = text.toLowerCase();
+  const words = query.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
+  for (const word of words) {
+    const idx = lower.indexOf(word);
+    if (idx !== -1) {
+      const start = Math.max(0, idx - 300);
+      return text.slice(start, start + maxLen);
+    }
+  }
+  return text.slice(0, maxLen);
 }
 
 export default function Home() {
@@ -58,6 +74,14 @@ export default function Home() {
   const [customPrompt, setCustomPrompt] = useState('');
   const [showPrompt, setShowPrompt] = useState(false);
 
+  const [guideExcerpt, setGuideExcerpt] = useState('');
+  const [isLoadingGuide, setIsLoadingGuide] = useState(false);
+  const [includeEpics, setIncludeEpics] = useState(true);
+  const [includeFigma, setIncludeFigma] = useState(true);
+  const [includeGuide, setIncludeGuide] = useState(true);
+  const [resultsInstructions, setResultsInstructions] = useState('');
+  const [showGuide, setShowGuide] = useState(false);
+
   useEffect(() => {
     fetch('/api/userguide')
       .then((r) => r.json())
@@ -78,6 +102,16 @@ export default function Home() {
     setSearchError('');
     setShortcutError('');
     setFigmaError('');
+    setGuideExcerpt('');
+    setIsLoadingGuide(true);
+
+    // Start guide fetch non-blocking
+    fetch('/api/userguide')
+      .then((r) => r.json())
+      .then((d) => { if (d.content) setGuideExcerpt(extractRelevant(d.content, featureName, 1800)); })
+      .catch(() => {})
+      .finally(() => setIsLoadingGuide(false));
+
     try {
       const [scRes, figmaRes] = await Promise.all([
         fetch(`/api/shortcut?q=${encodeURIComponent(featureName)}`),
@@ -103,13 +137,18 @@ export default function Home() {
     setIsGenerating(true);
     setGeneratedContent('');
 
+    const epicsToSend = includeEpics ? epics : [];
+    const figmaToSend = includeFigma ? figmaFiles : [];
+    const guideToSend = includeGuide ? guideExcerpt : '';
+    const combinedPrompt = [resultsInstructions, customPrompt].filter(Boolean).join('\n\n');
+
     if (selectedAction === 'update-userguide') {
       setStep('generating');
       try {
         const res = await fetch('/api/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: selectedAction, featureName, epics, figmaFiles, customPrompt }),
+          body: JSON.stringify({ type: selectedAction, featureName, epics: epicsToSend, figmaFiles: figmaToSend, guideExcerpt: guideToSend, customPrompt: combinedPrompt }),
         });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
@@ -130,7 +169,7 @@ export default function Home() {
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: selectedAction, featureName, epics, figmaFiles, customPrompt }),
+        body: JSON.stringify({ type: selectedAction, featureName, epics: epicsToSend, figmaFiles: figmaToSend, guideExcerpt: guideToSend, customPrompt: combinedPrompt }),
       });
       if (!res.body) throw new Error('No response body');
       const reader = res.body.getReader();
@@ -197,6 +236,13 @@ export default function Home() {
     setIsEditing(false);
     setCustomPrompt('');
     setShowPrompt(false);
+    setGuideExcerpt('');
+    setIsLoadingGuide(false);
+    setIncludeEpics(true);
+    setIncludeFigma(true);
+    setIncludeGuide(true);
+    setResultsInstructions('');
+    setShowGuide(false);
   };
 
   return (
@@ -300,19 +346,19 @@ export default function Home() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Shortcut */}
-                <div className="bg-white rounded-2xl border border-brand-border shadow-sm overflow-hidden">
+                <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all ${includeEpics ? 'border-brand-border' : 'border-brand-border opacity-60'}`}>
                   <div className="bg-brand-subtle border-b border-brand-border px-5 py-3 flex items-center gap-2">
                     <Wrench size={16} className="text-brand-green" />
                     <span className="font-semibold text-sm text-brand-body">Shortcut</span>
-                    <span className="ml-auto text-xs text-brand-gray">{epics.length} epic{epics.length !== 1 ? 's' : ''}</span>
+                    <span className="text-xs text-brand-gray">{epics.length} epic{epics.length !== 1 ? 's' : ''}</span>
+                    <label className="ml-auto flex items-center gap-1.5 text-xs text-brand-gray cursor-pointer select-none">
+                      <input type="checkbox" checked={includeEpics} onChange={(e) => setIncludeEpics(e.target.checked)} className="rounded accent-[#59a985]" />
+                      Include
+                    </label>
                   </div>
-                  <div className="p-4 space-y-3 max-h-80 overflow-y-auto">
-                    {shortcutError && (
-                      <div className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded p-2">{shortcutError}</div>
-                    )}
-                    {epics.length === 0 && !shortcutError && (
-                      <p className="text-sm text-brand-gray text-center py-4">No epics found</p>
-                    )}
+                  <div className="p-4 space-y-3 max-h-72 overflow-y-auto">
+                    {shortcutError && <div className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded p-2">{shortcutError}</div>}
+                    {epics.length === 0 && !shortcutError && <p className="text-sm text-brand-gray text-center py-4">No epics found</p>}
                     {epics.map((epic) => (
                       <div key={epic.id} className="border border-brand-border rounded-lg p-3">
                         <div className="flex items-start gap-2">
@@ -321,9 +367,7 @@ export default function Home() {
                             <p className="text-sm font-medium text-brand-body truncate">{epic.name}</p>
                             {epic.description && <p className="text-xs text-brand-gray mt-0.5 line-clamp-2">{epic.description}</p>}
                           </div>
-                          {epic.app_url && (
-                            <a href={epic.app_url} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-green flex-shrink-0"><ExternalLink size={12} /></a>
-                          )}
+                          {epic.app_url && <a href={epic.app_url} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-green flex-shrink-0"><ExternalLink size={12} /></a>}
                         </div>
                       </div>
                     ))}
@@ -331,44 +375,80 @@ export default function Home() {
                 </div>
 
                 {/* Figma */}
-                <div className="bg-white rounded-2xl border border-brand-border shadow-sm overflow-hidden">
+                <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all ${includeFigma ? 'border-brand-border' : 'border-brand-border opacity-60'}`}>
                   <div className="bg-brand-subtle border-b border-brand-border px-5 py-3 flex items-center gap-2">
                     <Layout size={16} className="text-pink-500" />
                     <span className="font-semibold text-sm text-brand-body">Figma</span>
-                    <span className="ml-auto text-xs text-brand-gray">{figmaFiles.length} file{figmaFiles.length !== 1 ? 's' : ''}</span>
+                    <span className="text-xs text-brand-gray">{figmaFiles.length} file{figmaFiles.length !== 1 ? 's' : ''}</span>
+                    <label className="ml-auto flex items-center gap-1.5 text-xs text-brand-gray cursor-pointer select-none">
+                      <input type="checkbox" checked={includeFigma} onChange={(e) => setIncludeFigma(e.target.checked)} className="rounded accent-[#59a985]" />
+                      Include
+                    </label>
                   </div>
-                  <div className="p-4 space-y-3 max-h-80 overflow-y-auto">
-                    {figmaError && (
-                      <div className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded p-2">{figmaError}</div>
-                    )}
-                    {figmaFiles.length === 0 && !figmaError && (
-                      <p className="text-sm text-brand-gray text-center py-4">No matching files found</p>
-                    )}
+                  <div className="p-4 space-y-3 max-h-72 overflow-y-auto">
+                    {figmaError && <div className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded p-2">{figmaError}</div>}
+                    {figmaFiles.length === 0 && !figmaError && <p className="text-sm text-brand-gray text-center py-4">No matching files found</p>}
                     {figmaFiles.map((file) => (
                       <div key={file.key} className="border border-brand-border rounded-lg p-3 flex items-start gap-3">
                         {file.thumbnail_url ? (
                           <img src={file.thumbnail_url} alt={file.name} className="w-12 h-9 object-cover rounded flex-shrink-0 bg-brand-subtle" />
                         ) : (
-                          <div className="w-12 h-9 bg-pink-50 rounded flex-shrink-0 flex items-center justify-center">
-                            <Layout size={16} className="text-pink-300" />
-                          </div>
+                          <div className="w-12 h-9 bg-pink-50 rounded flex-shrink-0 flex items-center justify-center"><Layout size={16} className="text-pink-300" /></div>
                         )}
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-brand-body truncate">{file.name}</p>
                           {file.project_name && <p className="text-xs text-brand-gray mt-0.5">{file.project_name}</p>}
                           <p className="text-xs text-brand-gray">{new Date(file.last_modified).toLocaleDateString()}</p>
                         </div>
-                        <a
-                          href={`https://www.figma.com/file/${file.key}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-brand-gray hover:text-pink-500 flex-shrink-0"
-                        >
-                          <ExternalLink size={12} />
-                        </a>
+                        <a href={`https://www.figma.com/file/${file.key}`} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-pink-500 flex-shrink-0"><ExternalLink size={12} /></a>
                       </div>
                     ))}
                   </div>
+                </div>
+              </div>
+
+              {/* User Guide */}
+              <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all ${includeGuide ? 'border-brand-border' : 'border-brand-border opacity-60'}`}>
+                <button
+                  onClick={() => setShowGuide(!showGuide)}
+                  className="w-full bg-brand-subtle border-b border-brand-border px-5 py-3 flex items-center gap-2 text-left"
+                >
+                  <BookOpen size={16} className="text-brand-green flex-shrink-0" />
+                  <span className="font-semibold text-sm text-brand-body">User Guide</span>
+                  {isLoadingGuide && <Loader2 size={13} className="animate-spin text-brand-gray" />}
+                  {!isLoadingGuide && guideExcerpt && <span className="text-xs text-brand-gray">relevant excerpt</span>}
+                  {!isLoadingGuide && !guideExcerpt && <span className="text-xs text-brand-gray">not available</span>}
+                  <label className="ml-auto flex items-center gap-1.5 text-xs text-brand-gray cursor-pointer select-none" onClick={(e) => e.stopPropagation()}>
+                    <input type="checkbox" checked={includeGuide} onChange={(e) => setIncludeGuide(e.target.checked)} className="rounded accent-[#59a985]" />
+                    Include
+                  </label>
+                  <ChevronRight size={14} className={`text-brand-gray ml-1 transition-transform ${showGuide ? 'rotate-90' : ''}`} />
+                </button>
+                {showGuide && (
+                  <div className="p-4">
+                    {isLoadingGuide && <p className="text-sm text-brand-gray text-center py-4"><Loader2 size={16} className="animate-spin inline mr-2" />Loading user guide…</p>}
+                    {!isLoadingGuide && guideExcerpt && (
+                      <pre className="text-xs text-brand-body whitespace-pre-wrap font-mono leading-relaxed max-h-64 overflow-y-auto bg-brand-subtle rounded-lg p-4">{guideExcerpt}</pre>
+                    )}
+                    {!isLoadingGuide && !guideExcerpt && <p className="text-sm text-brand-gray text-center py-4">User guide could not be loaded</p>}
+                  </div>
+                )}
+              </div>
+
+              {/* Instructions */}
+              <div className="bg-white rounded-2xl border border-brand-border shadow-sm overflow-hidden">
+                <div className="bg-brand-subtle border-b border-brand-border px-5 py-3 flex items-center gap-2">
+                  <Edit3 size={15} className="text-brand-green" />
+                  <span className="font-semibold text-sm text-brand-body">Specific Instructions</span>
+                  <span className="text-xs text-brand-gray">(optional)</span>
+                </div>
+                <div className="p-4">
+                  <textarea
+                    value={resultsInstructions}
+                    onChange={(e) => setResultsInstructions(e.target.value)}
+                    placeholder="e.g. Focus on enterprise buyers, highlight ROI, keep it under 300 words, target CTO persona…"
+                    className="w-full h-20 border border-brand-border rounded-xl px-4 py-3 text-sm text-brand-body placeholder:text-brand-gray focus:outline-none focus:ring-2 focus:ring-brand-green resize-none"
+                  />
                 </div>
               </div>
 
@@ -437,10 +517,13 @@ export default function Home() {
                   <p className="text-brand-gray text-sm mt-1">Claude is working on your {ACTIONS.find(a => a.type === selectedAction)?.label}</p>
                 </div>
               </div>
-              {generatedContent && (
+              {generatedContent && !isHtmlType(selectedAction) && (
                 <div className="bg-brand-subtle rounded-xl p-4 max-h-72 overflow-y-auto prose-content text-sm">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{generatedContent}</ReactMarkdown>
                 </div>
+              )}
+              {isHtmlType(selectedAction) && (
+                <p className="text-sm text-brand-gray text-center py-2">Building your branded HTML…</p>
               )}
             </div>
           )}
@@ -476,6 +559,14 @@ export default function Home() {
                     value={editContent}
                     onChange={(e) => setEditContent(e.target.value)}
                     className="w-full min-h-[500px] font-mono text-sm border border-brand-border rounded-xl p-4 focus:outline-none focus:ring-2 focus:ring-brand-green resize-y"
+                  />
+                ) : isHtmlType(selectedAction) ? (
+                  <iframe
+                    srcDoc={generatedContent}
+                    className="w-full border-0 rounded-xl"
+                    style={{ height: '700px' }}
+                    title="preview"
+                    sandbox="allow-same-origin allow-scripts"
                   />
                 ) : (
                   <div className="prose-content max-h-[600px] overflow-y-auto">

@@ -7,7 +7,7 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function POST(req: NextRequest) {
   const body: GenerateRequest = await req.json();
-  const { type, featureName, epics, figmaFiles, customPrompt } = body;
+  const { type, featureName, epics, figmaFiles, customPrompt, guideExcerpt } = body;
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: 'ANTHROPIC_API_KEY is not configured' }, { status: 500 });
@@ -25,11 +25,11 @@ export async function POST(req: NextRequest) {
       currentGuide = '(User guide unavailable)';
     }
 
-    const prompt = buildGuideUpdatePrompt(featureName, epics, figmaFiles, currentGuide, customPrompt);
+    const prompt = buildGuideUpdatePrompt(featureName, epics, figmaFiles, currentGuide, customPrompt, guideExcerpt);
 
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 4096,
+      max_tokens: 8192,
       messages: [{ role: 'user', content: prompt }],
     });
 
@@ -48,11 +48,11 @@ export async function POST(req: NextRequest) {
   }
 
   // All other types: streaming text response
-  const prompt = buildContentPrompt(type, featureName, epics, figmaFiles, customPrompt);
+  const prompt = buildContentPrompt(type, featureName, epics, figmaFiles, customPrompt, guideExcerpt);
 
   const stream = client.messages.stream({
     model: 'claude-sonnet-4-6',
-    max_tokens: 4096,
+    max_tokens: 8192,
     messages: [{ role: 'user', content: prompt }],
   });
 

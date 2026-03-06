@@ -57,4 +57,5 @@ export interface GenerateRequest {
   epics: ShortcutEpic[];
   figmaFiles: FigmaFile[];
   customPrompt?: string;
+  guideExcerpt?: string;
 }
