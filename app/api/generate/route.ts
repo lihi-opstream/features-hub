@@ -67,8 +67,9 @@ export async function POST(req: NextRequest) {
             controller.enqueue(new TextEncoder().encode(event.delta.text));
           }
         }
-      } finally {
         controller.close();
+      } catch (err) {
+        controller.error(err);
       }
     },
   });

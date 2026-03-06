@@ -171,6 +171,10 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: selectedAction, featureName, epics: epicsToSend, figmaFiles: figmaToSend, guideExcerpt: guideToSend, customPrompt: combinedPrompt }),
       });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error ?? `API error ${res.status}`);
+      }
       if (!res.body) throw new Error('No response body');
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -181,6 +185,7 @@ export default function Home() {
         content += decoder.decode(value, { stream: true });
         setGeneratedContent(content);
       }
+      if (!content.trim()) throw new Error('Generation returned empty content — check your API key and try again');
       setEditContent(content);
       setStep('preview');
     } catch (e) {
