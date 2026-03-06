@@ -82,6 +82,9 @@ function extractRelevant(text: string, query: string, maxLen: number): string {
 export default function Home() {
   const [step, setStep] = useState<Step>('search');
   const [featureName, setFeatureName] = useState('');
+  const [featureNames, setFeatureNames] = useState<string[]>([]);
+  const [addFeatureQuery, setAddFeatureQuery] = useState('');
+  const [isAddingFeature, setIsAddingFeature] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
 
@@ -129,38 +132,82 @@ export default function Home() {
   };
 
   const handleSearch = async () => {
-    if (!featureName.trim()) return;
+    // Parse comma- or plus-separated feature names
+    const names = featureName.split(/[,+]/).map((s) => s.trim()).filter(Boolean);
+    if (names.length === 0) return;
     setIsSearching(true);
     setSearchError('');
     setShortcutError('');
     setFigmaError('');
     setGuideExcerpt('');
     setIsLoadingGuide(true);
+    setFeatureNames(names);
 
-    // Start guide fetch non-blocking
+    // Start guide fetch non-blocking (search using all names joined)
+    const combinedQuery = names.join(' ');
     fetch('/api/userguide')
       .then((r) => r.json())
-      .then((d) => { if (d.content) setGuideExcerpt(extractRelevant(d.content, featureName, 1800)); })
+      .then((d) => { if (d.content) setGuideExcerpt(extractRelevant(d.content, combinedQuery, 1800)); })
       .catch(() => {})
       .finally(() => setIsLoadingGuide(false));
 
     try {
-      const [scRes, figmaRes] = await Promise.all([
-        fetch(`/api/shortcut?q=${encodeURIComponent(featureName)}`),
-        fetch(`/api/figma?q=${encodeURIComponent(featureName)}`),
-      ]);
-      const scData = await scRes.json();
-      const figmaData = await figmaRes.json();
-
-      setEpics(scData.epics ?? []);
-      setFigmaFiles(figmaData.files ?? []);
-      if (scData.error) setShortcutError(scData.error);
-      if (figmaData.error) setFigmaError(figmaData.error);
+      // Run a search per name in parallel, then merge+deduplicate
+      const results = await Promise.all(
+        names.map((n) => Promise.all([
+          fetch(`/api/shortcut?q=${encodeURIComponent(n)}`).then((r) => r.json()),
+          fetch(`/api/figma?q=${encodeURIComponent(n)}`).then((r) => r.json()),
+        ]))
+      );
+      const mergedEpics: ShortcutEpic[] = [];
+      const mergedFigma: FigmaFile[] = [];
+      for (const [scData, figmaData] of results) {
+        for (const e of (scData.epics ?? [])) {
+          if (!mergedEpics.some((x) => x.id === e.id)) mergedEpics.push(e);
+        }
+        for (const f of (figmaData.files ?? [])) {
+          if (!mergedFigma.some((x) => x.key === f.key)) mergedFigma.push(f);
+        }
+        if (scData.error) setShortcutError(scData.error);
+        if (figmaData.error) setFigmaError(figmaData.error);
+      }
+      setEpics(mergedEpics);
+      setFigmaFiles(mergedFigma);
       setStep('results');
     } catch (e) {
       setSearchError(e instanceof Error ? e.message : 'Search failed');
     } finally {
       setIsSearching(false);
+    }
+  };
+
+  const handleAddFeature = async () => {
+    const name = addFeatureQuery.trim();
+    if (!name) return;
+    setIsAddingFeature(true);
+    try {
+      const [scData, figmaData] = await Promise.all([
+        fetch(`/api/shortcut?q=${encodeURIComponent(name)}`).then((r) => r.json()),
+        fetch(`/api/figma?q=${encodeURIComponent(name)}`).then((r) => r.json()),
+      ]);
+      setEpics((prev) => {
+        const merged = [...prev];
+        for (const e of (scData.epics ?? [])) {
+          if (!merged.some((x) => x.id === e.id)) merged.push(e);
+        }
+        return merged;
+      });
+      setFigmaFiles((prev) => {
+        const merged = [...prev];
+        for (const f of (figmaData.files ?? [])) {
+          if (!merged.some((x) => x.key === f.key)) merged.push(f);
+        }
+        return merged;
+      });
+      setFeatureNames((prev) => [...prev, name]);
+      setAddFeatureQuery('');
+    } finally {
+      setIsAddingFeature(false);
     }
   };
 
@@ -173,6 +220,7 @@ export default function Home() {
     const figmaToSend = includeFigma ? figmaFiles : [];
     const guideToSend = includeGuide ? guideExcerpt : '';
     const combinedPrompt = [resultsInstructions, customPrompt].filter(Boolean).join('\n\n');
+    const combinedFeatureName = featureNames.length > 0 ? featureNames.join(' and ') : featureName;
 
     setStep('generating');
 
@@ -204,7 +252,7 @@ export default function Home() {
         const guideData = await guideRes.json();
         const currentGuide: string = guideData.content ?? '(User guide unavailable)';
 
-        const prompt = buildGuideUpdatePrompt(featureName, epicsToSend, figmaToSend, currentGuide, combinedPrompt, guideToSend);
+        const prompt = buildGuideUpdatePrompt(combinedFeatureName, epicsToSend, figmaToSend, currentGuide, combinedPrompt, guideToSend);
         const raw = await streamClaude(prompt, 8192);
         if (!raw.trim()) throw new Error('Claude returned empty content — please try again');
         const cleaned = raw.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '').trim();
@@ -223,7 +271,7 @@ export default function Home() {
     }
 
     try {
-      const prompt = buildContentPrompt(selectedAction, featureName, epicsToSend, figmaToSend, combinedPrompt, guideToSend);
+      const prompt = buildContentPrompt(selectedAction, combinedFeatureName, epicsToSend, figmaToSend, combinedPrompt, guideToSend);
       const maxTokens = isHtmlType(selectedAction) ? 8000 : 4096;
       const content = (await streamClaude(prompt, maxTokens)).trim();
 
@@ -273,6 +321,8 @@ export default function Home() {
   const resetFlow = () => {
     setStep('search');
     setFeatureName('');
+    setFeatureNames([]);
+    setAddFeatureQuery('');
     setEpics([]);
     setFigmaFiles([]);
     setSelectedAction(null);
@@ -370,7 +420,7 @@ export default function Home() {
                   value={featureName}
                   onChange={(e) => setFeatureName(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                  placeholder="e.g. Smart Notifications, Dashboard Analytics..."
+                  placeholder="e.g. Smart Notifications, Dashboard + Analytics (comma or + to combine)"
                   className="flex-1 border border-brand-border rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-transparent text-brand-body placeholder:text-brand-gray"
                 />
                 <button
@@ -388,9 +438,33 @@ export default function Home() {
           {/* STEP: RESULTS */}
           {step === 'results' && (
             <div className="space-y-4">
-              <div className="flex items-center gap-3 mb-6">
+              <div className="flex flex-wrap items-center gap-3 mb-6">
                 <button onClick={() => setStep('search')} className="flex items-center gap-1.5 text-sm text-brand-gray hover:text-brand-body font-medium"><ArrowLeft size={16} /> Back</button>
-                <h2 className="text-xl font-bold text-brand-navy">Results for <span className="text-brand-green">"{featureName}"</span></h2>
+                <h2 className="text-xl font-bold text-brand-navy">Results for</h2>
+                {featureNames.map((name) => (
+                  <span key={name} className="inline-flex items-center gap-1 bg-brand-green-light text-brand-green text-sm font-semibold px-3 py-1 rounded-full border border-brand-green/30">
+                    {name}
+                  </span>
+                ))}
+                {/* Add another feature inline */}
+                <div className="flex items-center gap-1.5 ml-auto">
+                  <input
+                    type="text"
+                    value={addFeatureQuery}
+                    onChange={(e) => setAddFeatureQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddFeature()}
+                    placeholder="Add another feature…"
+                    className="border border-brand-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green text-brand-body placeholder:text-brand-gray w-48"
+                  />
+                  <button
+                    onClick={handleAddFeature}
+                    disabled={!addFeatureQuery.trim() || isAddingFeature}
+                    className="flex items-center gap-1 bg-brand-green text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isAddingFeature ? <Loader2 size={13} className="animate-spin" /> : <span>+</span>}
+                    Add
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -519,7 +593,7 @@ export default function Home() {
                 <button onClick={() => setStep('results')} className="flex items-center gap-1.5 text-sm text-brand-gray hover:text-brand-body font-medium"><ArrowLeft size={16} /> Back</button>
                 <div>
                   <h2 className="text-xl font-bold text-brand-navy">What would you like to create?</h2>
-                  <p className="text-brand-gray text-sm mt-0.5">Feature: <span className="font-medium text-brand-green">{featureName}</span></p>
+                  <p className="text-brand-gray text-sm mt-0.5">Feature: <span className="font-medium text-brand-green">{featureNames.join(' + ') || featureName}</span></p>
                 </div>
               </div>
 
@@ -589,7 +663,7 @@ export default function Home() {
                 <button onClick={() => setStep('action')} className="flex items-center gap-1.5 text-sm text-brand-gray hover:text-brand-body font-medium"><ArrowLeft size={16} /> Back</button>
                 <div className="flex-1">
                   <h2 className="font-bold text-brand-navy">{ACTIONS.find(a => a.type === selectedAction)?.label}</h2>
-                  <p className="text-xs text-brand-gray">Feature: {featureName}</p>
+                  <p className="text-xs text-brand-gray">Feature: {featureNames.join(' + ') || featureName}</p>
                 </div>
                 <div className="flex gap-2">
                   <button
