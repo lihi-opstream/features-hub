@@ -25,6 +25,28 @@ const ACTIONS: { type: ActionType; label: string; description: string; icon: Rea
 
 const STEPS = ['Search', 'Review', 'Choose Action', 'Generate'];
 
+function OpstreamLogo() {
+  return (
+    <div className="flex items-center gap-2.5">
+      <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="logoGrad" x1="16" y1="0" x2="16" y2="32" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#1AA9DB" />
+            <stop offset="100%" stopColor="#2FBC88" />
+          </linearGradient>
+        </defs>
+        <rect width="32" height="32" rx="8" fill="url(#logoGrad)" />
+        <path d="M16 7C11.03 7 7 11.03 7 16s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 14.5A5.5 5.5 0 1 1 16 10.5a5.5 5.5 0 0 1 0 11z" fill="white" fillOpacity="0.9" />
+        <circle cx="16" cy="16" r="3" fill="white" />
+      </svg>
+      <div>
+        <span className="text-base font-bold text-brand-navy leading-none">Opstream</span>
+        <span className="block text-xs text-brand-gray leading-none mt-0.5">Features Hub</span>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const [step, setStep] = useState<Step>('search');
   const [featureName, setFeatureName] = useState('');
@@ -51,7 +73,6 @@ export default function Home() {
   const [showSettings, setShowSettings] = useState(false);
   const [guideExists, setGuideExists] = useState(false);
 
-  // Check if user guide exists on mount
   useEffect(() => {
     fetch('/api/userguide')
       .then((r) => r.json())
@@ -164,38 +185,18 @@ export default function Home() {
   const handleApplyGuideChanges = async () => {
     setIsApplying(true);
     try {
-      const guideRes = await fetch('/api/userguide');
-      const guideData = await guideRes.json();
-      let content: string = guideData.content ?? '';
-
       const approved = guideChanges.filter((_, i) => approvedChanges.has(i));
-      for (const change of approved) {
-        if (change.type === 'add') {
-          content += '\n\n' + change.suggested;
-        } else if (change.type === 'modify' && change.original) {
-          if (content.includes(change.original)) {
-            content = content.replace(change.original, change.suggested);
-          } else {
-            content += '\n\n' + change.suggested;
-          }
-        }
-      }
-
-      const saveRes = await fetch('/api/userguide', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content }),
-      });
-      if (saveRes.ok) {
-        setGuideExists(true);
-        setSavedPath('data/userguide.md');
-        setStep('saved');
-      }
+      const text = approved.map((c) => {
+        const header = c.type === 'add' ? `## [ADD] ${c.section}` : `## [MODIFY] ${c.section}`;
+        return `${header}\n\n${c.suggested}`;
+      }).join('\n\n---\n\n');
+      await navigator.clipboard.writeText(text);
+      setSavedPath('Copied to clipboard — paste into your Google Drive document');
+      setStep('saved');
     } finally {
       setIsApplying(false);
     }
   };
-
 
   const resetFlow = () => {
     setStep('search');
@@ -214,19 +215,13 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-brand-subtle">
       {/* Header */}
-      <header className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between shadow-lg">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center font-bold text-sm">O</div>
-          <div>
-            <h1 className="text-base font-semibold leading-none">OpStream Content Hub</h1>
-            <p className="text-slate-400 text-xs mt-0.5">www.opstream.ai</p>
-          </div>
-        </div>
+      <header className="bg-white border-b border-brand-border px-6 py-3.5 flex items-center justify-between">
+        <OpstreamLogo />
         <button
           onClick={() => setShowSettings(true)}
-          className="p-2 rounded-lg hover:bg-slate-700 transition-colors text-slate-300 hover:text-white"
+          className="p-2 rounded-lg hover:bg-brand-subtle transition-colors text-brand-gray hover:text-brand-body"
           title="Settings"
         >
           <Settings size={18} />
@@ -235,7 +230,7 @@ export default function Home() {
 
       {/* Progress bar */}
       {step !== 'saved' && (
-        <div className="bg-white border-b border-slate-200 px-6 py-3">
+        <div className="bg-white border-b border-brand-border px-6 py-3">
           <div className="max-w-4xl mx-auto flex items-center gap-2">
             {STEPS.map((s, i) => {
               const cur = currentStepIndex();
@@ -243,14 +238,14 @@ export default function Home() {
               const active = i === cur;
               return (
                 <div key={s} className="flex items-center">
-                  <div className={`flex items-center gap-2 text-sm font-medium ${active ? 'text-indigo-600' : done ? 'text-slate-500' : 'text-slate-300'}`}>
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs border-2 ${active ? 'border-indigo-600 bg-indigo-600 text-white' : done ? 'border-slate-400 bg-slate-400 text-white' : 'border-slate-200 text-slate-300'}`}>
+                  <div className={`flex items-center gap-2 text-sm font-medium ${active ? 'text-brand-green' : done ? 'text-brand-gray' : 'text-brand-border'}`}>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs border-2 ${active ? 'border-brand-green bg-brand-green text-white' : done ? 'border-brand-gray bg-brand-gray text-white' : 'border-brand-border text-brand-border'}`}>
                       {done ? <Check size={12} /> : i + 1}
                     </div>
                     {s}
                   </div>
                   {i < STEPS.length - 1 && (
-                    <ChevronRight size={14} className="mx-2 text-slate-300" />
+                    <ChevronRight size={14} className="mx-2 text-brand-border" />
                   )}
                 </div>
               );
@@ -265,9 +260,9 @@ export default function Home() {
 
           {/* STEP: SEARCH */}
           {step === 'search' && (
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
-              <h2 className="text-2xl font-bold text-slate-900 mb-2">What feature are you documenting?</h2>
-              <p className="text-slate-500 mb-6">Enter the feature name to search Shortcut and Figma for relevant context.</p>
+            <div className="bg-white rounded-2xl shadow-sm border border-brand-border p-8">
+              <h2 className="text-2xl font-bold text-brand-navy mb-2">What feature are you documenting?</h2>
+              <p className="text-brand-gray mb-6">Enter the feature name to search Shortcut and Figma for relevant context.</p>
 
               {!guideExists && (
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 flex gap-3 items-start">
@@ -290,12 +285,12 @@ export default function Home() {
                   onChange={(e) => setFeatureName(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                   placeholder="e.g. Smart Notifications, Dashboard Analytics..."
-                  className="flex-1 border border-slate-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="flex-1 border border-brand-border rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-transparent text-brand-body placeholder:text-brand-gray"
                 />
                 <button
                   onClick={handleSearch}
                   disabled={!featureName.trim() || isSearching}
-                  className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+                  className="bg-brand-green text-white px-6 py-3 rounded-xl font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-opacity"
                 >
                   {isSearching ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
                   {isSearching ? 'Searching...' : 'Search'}
@@ -308,51 +303,51 @@ export default function Home() {
           {step === 'results' && (
             <div className="space-y-4">
               <div className="flex items-center gap-3 mb-6">
-                <button onClick={() => setStep('search')} className="text-slate-500 hover:text-slate-700"><ArrowLeft size={18} /></button>
-                <h2 className="text-xl font-bold text-slate-900">Results for <span className="text-indigo-600">"{featureName}"</span></h2>
+                <button onClick={() => setStep('search')} className="text-brand-gray hover:text-brand-body"><ArrowLeft size={18} /></button>
+                <h2 className="text-xl font-bold text-brand-navy">Results for <span className="text-brand-green">"{featureName}"</span></h2>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Shortcut */}
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                  <div className="bg-slate-50 border-b border-slate-200 px-5 py-3 flex items-center gap-2">
-                    <Wrench size={16} className="text-indigo-500" />
-                    <span className="font-semibold text-sm text-slate-700">Shortcut</span>
-                    <span className="ml-auto text-xs text-slate-400">{epics.length} epic{epics.length !== 1 ? 's' : ''}, {stories.length} stor{stories.length !== 1 ? 'ies' : 'y'}</span>
+                <div className="bg-white rounded-2xl border border-brand-border shadow-sm overflow-hidden">
+                  <div className="bg-brand-subtle border-b border-brand-border px-5 py-3 flex items-center gap-2">
+                    <Wrench size={16} className="text-brand-green" />
+                    <span className="font-semibold text-sm text-brand-body">Shortcut</span>
+                    <span className="ml-auto text-xs text-brand-gray">{epics.length} epic{epics.length !== 1 ? 's' : ''}, {stories.length} stor{stories.length !== 1 ? 'ies' : 'y'}</span>
                   </div>
                   <div className="p-4 space-y-3 max-h-80 overflow-y-auto">
                     {shortcutError && (
                       <div className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded p-2">{shortcutError}</div>
                     )}
                     {epics.length === 0 && stories.length === 0 && !shortcutError && (
-                      <p className="text-sm text-slate-400 text-center py-4">No results found</p>
+                      <p className="text-sm text-brand-gray text-center py-4">No results found</p>
                     )}
                     {epics.map((epic) => (
-                      <div key={epic.id} className="border border-slate-100 rounded-lg p-3">
+                      <div key={epic.id} className="border border-brand-border rounded-lg p-3">
                         <div className="flex items-start gap-2">
                           <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium mt-0.5 flex-shrink-0">EPIC</span>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-slate-800 truncate">{epic.name}</p>
-                            {epic.description && <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{epic.description}</p>}
+                            <p className="text-sm font-medium text-brand-body truncate">{epic.name}</p>
+                            {epic.description && <p className="text-xs text-brand-gray mt-0.5 line-clamp-2">{epic.description}</p>}
                           </div>
                           {epic.app_url && (
-                            <a href={epic.app_url} target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-indigo-500 flex-shrink-0"><ExternalLink size={12} /></a>
+                            <a href={epic.app_url} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-green flex-shrink-0"><ExternalLink size={12} /></a>
                           )}
                         </div>
                       </div>
                     ))}
                     {stories.map((story) => (
-                      <div key={story.id} className="border border-slate-100 rounded-lg p-3">
+                      <div key={story.id} className="border border-brand-border rounded-lg p-3">
                         <div className="flex items-start gap-2">
-                          <span className={`text-xs px-1.5 py-0.5 rounded font-medium mt-0.5 flex-shrink-0 ${story.story_type === 'bug' ? 'bg-red-100 text-red-700' : story.story_type === 'chore' ? 'bg-slate-100 text-slate-600' : 'bg-blue-100 text-blue-700'}`}>
+                          <span className={`text-xs px-1.5 py-0.5 rounded font-medium mt-0.5 flex-shrink-0 ${story.story_type === 'bug' ? 'bg-red-100 text-red-700' : story.story_type === 'chore' ? 'bg-brand-subtle text-brand-gray' : 'bg-blue-100 text-blue-700'}`}>
                             {story.story_type.toUpperCase()}
                           </span>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-slate-800 truncate">{story.name}</p>
-                            {story.description && <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{story.description}</p>}
+                            <p className="text-sm font-medium text-brand-body truncate">{story.name}</p>
+                            {story.description && <p className="text-xs text-brand-gray mt-0.5 line-clamp-2">{story.description}</p>}
                           </div>
                           {story.app_url && (
-                            <a href={story.app_url} target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-indigo-500 flex-shrink-0"><ExternalLink size={12} /></a>
+                            <a href={story.app_url} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-green flex-shrink-0"><ExternalLink size={12} /></a>
                           )}
                         </div>
                       </div>
@@ -361,38 +356,38 @@ export default function Home() {
                 </div>
 
                 {/* Figma */}
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                  <div className="bg-slate-50 border-b border-slate-200 px-5 py-3 flex items-center gap-2">
+                <div className="bg-white rounded-2xl border border-brand-border shadow-sm overflow-hidden">
+                  <div className="bg-brand-subtle border-b border-brand-border px-5 py-3 flex items-center gap-2">
                     <Layout size={16} className="text-pink-500" />
-                    <span className="font-semibold text-sm text-slate-700">Figma</span>
-                    <span className="ml-auto text-xs text-slate-400">{figmaFiles.length} file{figmaFiles.length !== 1 ? 's' : ''}</span>
+                    <span className="font-semibold text-sm text-brand-body">Figma</span>
+                    <span className="ml-auto text-xs text-brand-gray">{figmaFiles.length} file{figmaFiles.length !== 1 ? 's' : ''}</span>
                   </div>
                   <div className="p-4 space-y-3 max-h-80 overflow-y-auto">
                     {figmaError && (
                       <div className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded p-2">{figmaError}</div>
                     )}
                     {figmaFiles.length === 0 && !figmaError && (
-                      <p className="text-sm text-slate-400 text-center py-4">No matching files found</p>
+                      <p className="text-sm text-brand-gray text-center py-4">No matching files found</p>
                     )}
                     {figmaFiles.map((file) => (
-                      <div key={file.key} className="border border-slate-100 rounded-lg p-3 flex items-start gap-3">
+                      <div key={file.key} className="border border-brand-border rounded-lg p-3 flex items-start gap-3">
                         {file.thumbnail_url ? (
-                          <img src={file.thumbnail_url} alt={file.name} className="w-12 h-9 object-cover rounded flex-shrink-0 bg-slate-100" />
+                          <img src={file.thumbnail_url} alt={file.name} className="w-12 h-9 object-cover rounded flex-shrink-0 bg-brand-subtle" />
                         ) : (
                           <div className="w-12 h-9 bg-pink-50 rounded flex-shrink-0 flex items-center justify-center">
                             <Layout size={16} className="text-pink-300" />
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-slate-800 truncate">{file.name}</p>
-                          {file.project_name && <p className="text-xs text-slate-400 mt-0.5">{file.project_name}</p>}
-                          <p className="text-xs text-slate-400">{new Date(file.last_modified).toLocaleDateString()}</p>
+                          <p className="text-sm font-medium text-brand-body truncate">{file.name}</p>
+                          {file.project_name && <p className="text-xs text-brand-gray mt-0.5">{file.project_name}</p>}
+                          <p className="text-xs text-brand-gray">{new Date(file.last_modified).toLocaleDateString()}</p>
                         </div>
                         <a
                           href={`https://www.figma.com/file/${file.key}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-slate-400 hover:text-pink-500 flex-shrink-0"
+                          className="text-brand-gray hover:text-pink-500 flex-shrink-0"
                         >
                           <ExternalLink size={12} />
                         </a>
@@ -405,7 +400,7 @@ export default function Home() {
               <div className="flex justify-end pt-2">
                 <button
                   onClick={() => setStep('action')}
-                  className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-medium hover:bg-indigo-700 flex items-center gap-2 transition-colors"
+                  className="bg-brand-green text-white px-6 py-3 rounded-xl font-medium hover:opacity-90 flex items-center gap-2 transition-opacity"
                 >
                   Continue <ChevronRight size={16} />
                 </button>
@@ -417,10 +412,10 @@ export default function Home() {
           {step === 'action' && (
             <div>
               <div className="flex items-center gap-3 mb-6">
-                <button onClick={() => setStep('results')} className="text-slate-500 hover:text-slate-700"><ArrowLeft size={18} /></button>
+                <button onClick={() => setStep('results')} className="text-brand-gray hover:text-brand-body"><ArrowLeft size={18} /></button>
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900">What would you like to create?</h2>
-                  <p className="text-slate-500 text-sm mt-0.5">Feature: <span className="font-medium text-indigo-600">{featureName}</span></p>
+                  <h2 className="text-xl font-bold text-brand-navy">What would you like to create?</h2>
+                  <p className="text-brand-gray text-sm mt-0.5">Feature: <span className="font-medium text-brand-green">{featureName}</span></p>
                 </div>
               </div>
 
@@ -433,11 +428,11 @@ export default function Home() {
                   <button
                     key={action.type}
                     onClick={() => setSelectedAction(action.type)}
-                    className={`text-left p-4 rounded-xl border-2 transition-all ${selectedAction === action.type ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 bg-white hover:border-indigo-300 hover:bg-slate-50'}`}
+                    className={`text-left p-4 rounded-xl border-2 transition-all ${selectedAction === action.type ? 'border-brand-green bg-brand-green-light' : 'border-brand-border bg-white hover:border-brand-green hover:bg-brand-subtle'}`}
                   >
-                    <div className={`mb-2 ${selectedAction === action.type ? 'text-indigo-600' : 'text-slate-500'}`}>{action.icon}</div>
-                    <p className="font-semibold text-slate-800 text-sm">{action.label}</p>
-                    <p className="text-xs text-slate-500 mt-1">{action.description}</p>
+                    <div className={`mb-2 ${selectedAction === action.type ? 'text-brand-green' : 'text-brand-gray'}`}>{action.icon}</div>
+                    <p className="font-semibold text-brand-body text-sm">{action.label}</p>
+                    <p className="text-xs text-brand-gray mt-1">{action.description}</p>
                   </button>
                 ))}
               </div>
@@ -446,7 +441,7 @@ export default function Home() {
                 <button
                   onClick={handleGenerate}
                   disabled={!selectedAction || isGenerating}
-                  className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+                  className="bg-brand-green text-white px-6 py-3 rounded-xl font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-opacity"
                 >
                   {isGenerating ? <Loader2 size={18} className="animate-spin" /> : null}
                   Generate
@@ -457,18 +452,18 @@ export default function Home() {
 
           {/* STEP: GENERATING */}
           {step === 'generating' && (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
+            <div className="bg-white rounded-2xl border border-brand-border shadow-sm p-8">
               <div className="flex flex-col items-center gap-4 mb-8 text-center">
-                <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center">
-                  <Loader2 size={28} className="animate-spin text-indigo-600" />
+                <div className="w-14 h-14 bg-brand-green-light rounded-2xl flex items-center justify-center">
+                  <Loader2 size={28} className="animate-spin text-brand-green" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900">Generating content…</h2>
-                  <p className="text-slate-500 text-sm mt-1">Claude is working on your {ACTIONS.find(a => a.type === selectedAction)?.label}</p>
+                  <h2 className="text-xl font-bold text-brand-navy">Generating content…</h2>
+                  <p className="text-brand-gray text-sm mt-1">Claude is working on your {ACTIONS.find(a => a.type === selectedAction)?.label}</p>
                 </div>
               </div>
               {generatedContent && (
-                <div className="bg-slate-50 rounded-xl p-4 max-h-72 overflow-y-auto prose-content text-sm">
+                <div className="bg-brand-subtle rounded-xl p-4 max-h-72 overflow-y-auto prose-content text-sm">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{generatedContent}</ReactMarkdown>
                 </div>
               )}
@@ -477,23 +472,23 @@ export default function Home() {
 
           {/* STEP: PREVIEW */}
           {step === 'preview' && (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="border-b border-slate-200 px-5 py-3 flex items-center gap-3">
-                <button onClick={() => setStep('action')} className="text-slate-500 hover:text-slate-700"><ArrowLeft size={18} /></button>
+            <div className="bg-white rounded-2xl border border-brand-border shadow-sm overflow-hidden">
+              <div className="border-b border-brand-border px-5 py-3 flex items-center gap-3">
+                <button onClick={() => setStep('action')} className="text-brand-gray hover:text-brand-body"><ArrowLeft size={18} /></button>
                 <div className="flex-1">
-                  <h2 className="font-bold text-slate-900">{ACTIONS.find(a => a.type === selectedAction)?.label}</h2>
-                  <p className="text-xs text-slate-400">Feature: {featureName}</p>
+                  <h2 className="font-bold text-brand-navy">{ACTIONS.find(a => a.type === selectedAction)?.label}</h2>
+                  <p className="text-xs text-brand-gray">Feature: {featureName}</p>
                 </div>
                 <div className="flex gap-2">
                   <button
                     onClick={() => { setIsEditing(!isEditing); if (!isEditing) setEditContent(generatedContent); }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${isEditing ? 'bg-slate-200 text-slate-700' : 'border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${isEditing ? 'bg-brand-subtle text-brand-body' : 'border border-brand-border text-brand-body hover:bg-brand-subtle'}`}
                   >
                     <Edit3 size={14} /> {isEditing ? 'Preview' : 'Edit'}
                   </button>
                   <button
                     onClick={handleSave}
-                    className="flex items-center gap-1.5 bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
+                    className="flex items-center gap-1.5 bg-brand-green text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
                   >
                     <Save size={14} /> Save
                   </button>
@@ -505,7 +500,7 @@ export default function Home() {
                   <textarea
                     value={editContent}
                     onChange={(e) => setEditContent(e.target.value)}
-                    className="w-full min-h-[500px] font-mono text-sm border border-slate-200 rounded-xl p-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y"
+                    className="w-full min-h-[500px] font-mono text-sm border border-brand-border rounded-xl p-4 focus:outline-none focus:ring-2 focus:ring-brand-green resize-y"
                   />
                 ) : (
                   <div className="prose-content max-h-[600px] overflow-y-auto">
@@ -520,10 +515,10 @@ export default function Home() {
           {step === 'guide-review' && (
             <div>
               <div className="flex items-center gap-3 mb-6">
-                <button onClick={() => setStep('action')} className="text-slate-500 hover:text-slate-700"><ArrowLeft size={18} /></button>
+                <button onClick={() => setStep('action')} className="text-brand-gray hover:text-brand-body"><ArrowLeft size={18} /></button>
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900">Suggested User Guide Changes</h2>
-                  <p className="text-slate-500 text-sm mt-0.5">{approvedChanges.size} of {guideChanges.length} changes approved — review and apply</p>
+                  <h2 className="text-xl font-bold text-brand-navy">Suggested User Guide Changes</h2>
+                  <p className="text-brand-gray text-sm mt-0.5">{approvedChanges.size} of {guideChanges.length} changes approved — review and copy to Google Drive</p>
                 </div>
               </div>
 
@@ -531,12 +526,12 @@ export default function Home() {
                 {guideChanges.map((change, i) => {
                   const approved = approvedChanges.has(i);
                   return (
-                    <div key={i} className={`bg-white rounded-2xl border-2 shadow-sm overflow-hidden transition-all ${approved ? 'border-green-300' : 'border-slate-200'}`}>
-                      <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${change.type === 'add' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                    <div key={i} className={`bg-white rounded-2xl border-2 shadow-sm overflow-hidden transition-all ${approved ? 'border-brand-green' : 'border-brand-border'}`}>
+                      <div className="px-5 py-3 border-b border-brand-border flex items-center gap-3">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${change.type === 'add' ? 'bg-brand-green-light text-brand-green' : 'bg-blue-100 text-blue-700'}`}>
                           {change.type === 'add' ? '+ ADD' : '✎ MODIFY'}
                         </span>
-                        <span className="font-medium text-slate-800 text-sm flex-1">{change.section}</span>
+                        <span className="font-medium text-brand-body text-sm flex-1">{change.section}</span>
                         <div className="flex gap-2">
                           <button
                             onClick={() => {
@@ -544,7 +539,7 @@ export default function Home() {
                               if (next.has(i)) next.delete(i); else next.add(i);
                               setApprovedChanges(next);
                             }}
-                            className={`flex items-center gap-1 px-3 py-1 rounded-lg text-sm font-medium transition-colors ${approved ? 'bg-green-100 text-green-700 hover:bg-red-100 hover:text-red-700' : 'bg-slate-100 text-slate-600 hover:bg-green-100 hover:text-green-700'}`}
+                            className={`flex items-center gap-1 px-3 py-1 rounded-lg text-sm font-medium transition-colors ${approved ? 'bg-brand-green-light text-brand-green hover:bg-red-100 hover:text-red-700' : 'bg-brand-subtle text-brand-gray hover:bg-brand-green-light hover:text-brand-green'}`}
                           >
                             {approved ? <><Check size={14} /> Approved</> : <><X size={14} /> Skipped</>}
                           </button>
@@ -553,17 +548,17 @@ export default function Home() {
                       <div className="p-5 space-y-3">
                         {change.original && (
                           <div>
-                            <p className="text-xs font-medium text-slate-400 mb-1 uppercase tracking-wide">Original</p>
-                            <div className="bg-red-50 border border-red-100 rounded-lg p-3 text-sm text-slate-700 font-mono whitespace-pre-wrap line-through opacity-70">{change.original}</div>
+                            <p className="text-xs font-medium text-brand-gray mb-1 uppercase tracking-wide">Original</p>
+                            <div className="bg-red-50 border border-red-100 rounded-lg p-3 text-sm text-brand-body font-mono whitespace-pre-wrap line-through opacity-70">{change.original}</div>
                           </div>
                         )}
                         <div>
-                          <p className="text-xs font-medium text-slate-400 mb-1 uppercase tracking-wide">Suggested</p>
-                          <div className="bg-green-50 border border-green-100 rounded-lg p-3 text-sm text-slate-700 prose-content">
+                          <p className="text-xs font-medium text-brand-gray mb-1 uppercase tracking-wide">Suggested</p>
+                          <div className="bg-brand-green-light border border-brand-green/20 rounded-lg p-3 text-sm text-brand-body prose-content">
                             <ReactMarkdown remarkPlugins={[remarkGfm]}>{change.suggested}</ReactMarkdown>
                           </div>
                         </div>
-                        <p className="text-xs text-slate-500 italic">{change.reason}</p>
+                        <p className="text-xs text-brand-gray italic">{change.reason}</p>
                       </div>
                     </div>
                   );
@@ -579,17 +574,17 @@ export default function Home() {
                       setApprovedChanges(new Set(guideChanges.map((_, i) => i)));
                     }
                   }}
-                  className="text-sm text-slate-500 hover:text-slate-700 underline"
+                  className="text-sm text-brand-gray hover:text-brand-body underline"
                 >
                   {approvedChanges.size === guideChanges.length ? 'Deselect all' : 'Select all'}
                 </button>
                 <button
                   onClick={handleApplyGuideChanges}
                   disabled={approvedChanges.size === 0 || isApplying}
-                  className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+                  className="bg-brand-green text-white px-6 py-3 rounded-xl font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-opacity"
                 >
                   {isApplying ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
-                  Apply {approvedChanges.size} Change{approvedChanges.size !== 1 ? 's' : ''}
+                  Copy {approvedChanges.size} Change{approvedChanges.size !== 1 ? 's' : ''}
                 </button>
               </div>
             </div>
@@ -597,31 +592,43 @@ export default function Home() {
 
           {/* STEP: SAVED */}
           {step === 'saved' && (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-10 text-center">
-              <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <CheckCircle size={32} className="text-green-600" />
+            <div className="bg-white rounded-2xl border border-brand-border shadow-sm p-10 text-center">
+              <div className="w-16 h-16 bg-brand-green-light rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <CheckCircle size={32} className="text-brand-green" />
               </div>
-              <h2 className="text-2xl font-bold text-slate-900 mb-2">
-                {selectedAction === 'update-userguide' ? 'User Guide Updated!' : 'Content Saved!'}
+              <h2 className="text-2xl font-bold text-brand-navy mb-2">
+                {selectedAction === 'update-userguide' ? 'Changes Ready!' : 'Content Saved!'}
               </h2>
-              <p className="text-slate-500 mb-2">
+              <p className="text-brand-gray mb-2">
                 {selectedAction === 'update-userguide'
-                  ? 'The approved changes have been applied to your user guide.'
+                  ? 'Approved changes have been copied to your clipboard. Paste them into your Google Drive document.'
                   : `Your ${ACTIONS.find(a => a.type === selectedAction)?.label} has been saved.`}
               </p>
               {savedPath && (
-                <p className="text-sm font-mono bg-slate-100 text-slate-600 inline-block px-3 py-1.5 rounded-lg mb-6">{savedPath}</p>
+                <p className="text-sm bg-brand-subtle text-brand-gray inline-block px-3 py-1.5 rounded-lg mb-6 border border-brand-border">{savedPath}</p>
+              )}
+              {selectedAction === 'update-userguide' && (
+                <div className="mb-6">
+                  <a
+                    href="https://docs.google.com/document/d/1YM_4b6Yt3U1DfeZo5YQey-TW4Avn67fsVNEiJsAOuMc/edit"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-sm text-brand-green hover:opacity-80 underline"
+                  >
+                    <ExternalLink size={14} /> Open User Guide in Google Drive
+                  </a>
+                </div>
               )}
               <div className="flex gap-3 justify-center">
                 <button
                   onClick={resetFlow}
-                  className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-xl font-medium hover:bg-indigo-700 transition-colors"
+                  className="flex items-center gap-2 bg-brand-green text-white px-6 py-3 rounded-xl font-medium hover:opacity-90 transition-opacity"
                 >
                   <RefreshCw size={16} /> Start New Feature
                 </button>
                 <button
                   onClick={() => setStep('action')}
-                  className="flex items-center gap-2 border border-slate-200 text-slate-700 px-6 py-3 rounded-xl font-medium hover:bg-slate-50 transition-colors"
+                  className="flex items-center gap-2 border border-brand-border text-brand-body px-6 py-3 rounded-xl font-medium hover:bg-brand-subtle transition-colors"
                 >
                   Create Another
                 </button>
@@ -631,13 +638,23 @@ export default function Home() {
         </div>
       </main>
 
+      {/* Footer */}
+      <footer className="border-t border-brand-border bg-white px-6 py-4">
+        <div className="max-w-4xl mx-auto flex items-center justify-between text-xs text-brand-gray">
+          <span>© {new Date().getFullYear()} Opstream. All rights reserved.</span>
+          <div className="flex items-center gap-4">
+            <a href="https://www.opstream.ai" target="_blank" rel="noopener noreferrer" className="hover:text-brand-green transition-colors">www.opstream.ai</a>
+          </div>
+        </div>
+      </footer>
+
       {/* Settings Modal */}
       {showSettings && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-              <h3 className="text-lg font-bold text-slate-900">Settings</h3>
-              <button onClick={() => setShowSettings(false)} className="text-slate-400 hover:text-slate-600">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-brand-border">
+              <h3 className="text-lg font-bold text-brand-navy">Settings</h3>
+              <button onClick={() => setShowSettings(false)} className="text-brand-gray hover:text-brand-body">
                 <X size={20} />
               </button>
             </div>
@@ -645,14 +662,14 @@ export default function Home() {
             <div className="p-6 space-y-6">
               {/* Site */}
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Site URL</label>
-                <div className="bg-slate-100 rounded-lg px-3 py-2 text-sm text-slate-600 font-mono">www.opstream.ai</div>
+                <label className="block text-sm font-semibold text-brand-body mb-1">Site URL</label>
+                <div className="bg-brand-subtle rounded-lg px-3 py-2 text-sm text-brand-gray font-mono border border-brand-border">www.opstream.ai</div>
               </div>
 
               {/* API Status */}
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">API Credentials</label>
-                <p className="text-xs text-slate-500 mb-3">Set these in your <span className="font-mono">.env.local</span> file. See <span className="font-mono">.env.example</span> for reference.</p>
+                <label className="block text-sm font-semibold text-brand-body mb-2">API Credentials</label>
+                <p className="text-xs text-brand-gray mb-3">Configured via environment variables in AWS Amplify.</p>
                 <div className="space-y-2">
                   {[
                     { label: 'Anthropic API Key', env: 'ANTHROPIC_API_KEY' },
@@ -660,9 +677,9 @@ export default function Home() {
                     { label: 'Figma API Token', env: 'FIGMA_API_TOKEN' },
                     { label: 'Figma Team / Project ID', env: 'FIGMA_TEAM_ID / FIGMA_PROJECT_ID' },
                   ].map((item) => (
-                    <div key={item.env} className="flex items-center justify-between text-sm bg-slate-50 rounded-lg px-3 py-2">
-                      <span className="text-slate-700">{item.label}</span>
-                      <span className="font-mono text-xs text-slate-400">{item.env}</span>
+                    <div key={item.env} className="flex items-center justify-between text-sm bg-brand-subtle rounded-lg px-3 py-2 border border-brand-border">
+                      <span className="text-brand-body">{item.label}</span>
+                      <span className="font-mono text-xs text-brand-gray">{item.env}</span>
                     </div>
                   ))}
                 </div>
@@ -670,20 +687,20 @@ export default function Home() {
 
               {/* User Guide */}
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">
+                <label className="block text-sm font-semibold text-brand-body mb-1">
                   User Guide
-                  {guideExists && <span className="ml-2 text-xs text-green-600 font-normal">✓ Connected</span>}
+                  {guideExists && <span className="ml-2 text-xs text-brand-green font-normal">✓ Connected</span>}
                 </label>
-                <p className="text-xs text-slate-500 mb-3">The user guide is loaded from Google Drive and used by AI to suggest updates.</p>
+                <p className="text-xs text-brand-gray mb-3">The user guide is loaded from Google Drive and used by AI to suggest updates.</p>
                 <a
                   href="https://docs.google.com/document/d/1YM_4b6Yt3U1DfeZo5YQey-TW4Avn67fsVNEiJsAOuMc/edit"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full flex items-center gap-3 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors"
+                  className="w-full flex items-center gap-3 border border-brand-border rounded-xl px-4 py-3 text-sm font-medium text-brand-body hover:bg-brand-subtle hover:border-brand-green transition-colors"
                 >
-                  <FileText size={18} className="text-slate-400 flex-shrink-0" />
+                  <FileText size={18} className="text-brand-gray flex-shrink-0" />
                   <span className="flex-1">Open User Guide in Google Drive</span>
-                  <ExternalLink size={14} className="text-slate-400 flex-shrink-0" />
+                  <ExternalLink size={14} className="text-brand-gray flex-shrink-0" />
                 </a>
               </div>
             </div>
