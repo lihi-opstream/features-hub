@@ -29,6 +29,37 @@ function injectLogo(html: string): string {
   return html.replaceAll('[[LOGO]]', LOGO_IMG);
 }
 
+// Use Claude Haiku to normalize feature names before searching.
+// Handles abbreviations ("budget mng" → "budget management"),
+// concatenated words ("askopstream" → "ask opstream"), and multi-feature inputs.
+async function expandFeatureNames(input: string): Promise<string[]> {
+  const rawParts = input.split(/[,+]/).map((s) => s.trim()).filter(Boolean);
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 200,
+      messages: [{
+        role: 'user',
+        content: `Normalize these ${rawParts.length} product feature name(s) for search. Output exactly ${rawParts.length} line(s) in the same order.
+Rules: split concatenated words (askopstream → ask opstream), expand abbreviations (mng → management, notif → notifications, cfg → configuration, mgmt → management, bgt → budget). Keep lowercase.
+
+Input:
+${rawParts.map((p, i) => `${i + 1}. ${p}`).join('\n')}
+
+Output (one per line, no numbering):`,
+      }],
+    });
+    const text = response.content[0].type === 'text' ? response.content[0].text.trim() : '';
+    if (!text) return rawParts;
+    const lines = text.split('\n')
+      .map((s) => s.replace(/^\d+\.\s*/, '').replace(/^[-•*]\s*/, '').trim())
+      .filter(Boolean);
+    return lines.length === rawParts.length ? lines : rawParts;
+  } catch {
+    return rawParts;
+  }
+}
+
 type Step = 'search' | 'results' | 'action' | 'generating' | 'preview' | 'guide-review' | 'saved';
 
 const ACTIONS: { type: ActionType; label: string; description: string; icon: React.ReactNode }[] = [
@@ -120,8 +151,6 @@ export default function Home() {
 
   const [guideExcerpt, setGuideExcerpt] = useState('');
   const [isLoadingGuide, setIsLoadingGuide] = useState(false);
-  const [includeEpics, setIncludeEpics] = useState(true);
-  const [includeFigma, setIncludeFigma] = useState(true);
   const [includeGuide, setIncludeGuide] = useState(true);
   const [excludedEpicIds, setExcludedEpicIds] = useState<Set<number>>(new Set());
   const [excludedFigmaKeys, setExcludedFigmaKeys] = useState<Set<string>>(new Set());
@@ -143,18 +172,19 @@ export default function Home() {
   };
 
   const handleSearch = async () => {
-    // Parse comma- or plus-separated feature names
-    const names = featureName.split(/[,+]/).map((s) => s.trim()).filter(Boolean);
-    if (names.length === 0) return;
+    if (!featureName.trim()) return;
     setIsSearching(true);
     setSearchError('');
     setShortcutError('');
     setFigmaError('');
     setGuideExcerpt('');
     setIsLoadingGuide(true);
-    setFeatureNames(names);
     setExcludedEpicIds(new Set());
     setExcludedFigmaKeys(new Set());
+
+    // Expand/normalize feature names with AI (handles abbreviations, concatenated words, etc.)
+    const names = await expandFeatureNames(featureName);
+    setFeatureNames(names);
 
     // Start guide fetch non-blocking (search using all names joined)
     const combinedQuery = names.join(' ');
@@ -165,7 +195,7 @@ export default function Home() {
       .finally(() => setIsLoadingGuide(false));
 
     try {
-      // Run a search per name in parallel, then merge+deduplicate
+      // Run a search per expanded name in parallel, then merge+deduplicate
       const results = await Promise.all(
         names.map((n) => Promise.all([
           fetch(`/api/shortcut?q=${encodeURIComponent(n)}`).then((r) => r.json()),
@@ -195,29 +225,35 @@ export default function Home() {
   };
 
   const handleAddFeature = async () => {
-    const name = addFeatureQuery.trim();
-    if (!name) return;
+    if (!addFeatureQuery.trim()) return;
     setIsAddingFeature(true);
     try {
-      const [scData, figmaData] = await Promise.all([
-        fetch(`/api/shortcut?q=${encodeURIComponent(name)}`).then((r) => r.json()),
-        fetch(`/api/figma?q=${encodeURIComponent(name)}`).then((r) => r.json()),
-      ]);
+      const expanded = await expandFeatureNames(addFeatureQuery);
+      const results = await Promise.all(
+        expanded.map((n) => Promise.all([
+          fetch(`/api/shortcut?q=${encodeURIComponent(n)}`).then((r) => r.json()),
+          fetch(`/api/figma?q=${encodeURIComponent(n)}`).then((r) => r.json()),
+        ]))
+      );
       setEpics((prev) => {
         const merged = [...prev];
-        for (const e of (scData.epics ?? [])) {
-          if (!merged.some((x) => x.id === e.id)) merged.push(e);
-        }
+        for (const [scData] of results)
+          for (const e of (scData.epics ?? []))
+            if (!merged.some((x) => x.id === e.id)) merged.push(e);
         return merged;
       });
       setFigmaFiles((prev) => {
         const merged = [...prev];
-        for (const f of (figmaData.files ?? [])) {
-          if (!merged.some((x) => x.key === f.key)) merged.push(f);
-        }
+        for (const [, figmaData] of results)
+          for (const f of (figmaData.files ?? []))
+            if (!merged.some((x) => x.key === f.key)) merged.push(f);
         return merged;
       });
-      setFeatureNames((prev) => [...prev, name]);
+      setFeatureNames((prev) => {
+        const next = [...prev];
+        for (const n of expanded) if (!next.includes(n)) next.push(n);
+        return next;
+      });
       setAddFeatureQuery('');
     } finally {
       setIsAddingFeature(false);
@@ -229,8 +265,8 @@ export default function Home() {
     setIsGenerating(true);
     setGeneratedContent('');
 
-    const epicsToSend = includeEpics ? epics.filter((e) => !excludedEpicIds.has(e.id)) : [];
-    const figmaToSend = includeFigma ? figmaFiles.filter((f) => !excludedFigmaKeys.has(f.key)) : [];
+    const epicsToSend = epics.filter((e) => !excludedEpicIds.has(e.id));
+    const figmaToSend = figmaFiles.filter((f) => !excludedFigmaKeys.has(f.key));
     const guideToSend = includeGuide ? guideExcerpt : '';
     const combinedPrompt = [resultsInstructions, customPrompt].filter(Boolean).join('\n\n');
     const combinedFeatureName = featureNames.length > 0 ? featureNames.join(' and ') : featureName;
@@ -351,8 +387,6 @@ export default function Home() {
     setShowPrompt(false);
     setGuideExcerpt('');
     setIsLoadingGuide(false);
-    setIncludeEpics(true);
-    setIncludeFigma(true);
     setIncludeGuide(true);
     setExcludedEpicIds(new Set());
     setExcludedFigmaKeys(new Set());
@@ -485,25 +519,18 @@ export default function Home() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Shortcut */}
-                <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all ${includeEpics ? 'border-brand-border' : 'border-brand-border opacity-60'}`}>
+                <div className="bg-white rounded-2xl border border-brand-border shadow-sm overflow-hidden">
                   <div className="bg-brand-subtle border-b border-brand-border px-5 py-3 flex items-center gap-2">
                     <Wrench size={16} className="text-brand-green" />
                     <span className="font-semibold text-sm text-brand-body">Shortcut</span>
                     <span className="text-xs text-brand-gray">
-                      {includeEpics ? epics.length - excludedEpicIds.size : 0}/{epics.length} epic{epics.length !== 1 ? 's' : ''}
+                      {epics.length - excludedEpicIds.size}/{epics.length} epic{epics.length !== 1 ? 's' : ''}
                     </span>
-                    <label className="ml-auto flex items-center gap-1.5 text-xs text-brand-gray cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={includeEpics}
-                        onChange={(e) => {
-                          setIncludeEpics(e.target.checked);
-                          if (e.target.checked) setExcludedEpicIds(new Set());
-                        }}
-                        className="rounded accent-[#59a985]"
-                      />
-                      Include all
-                    </label>
+                    <div className="ml-auto flex items-center gap-2 text-xs">
+                      <button onClick={() => setExcludedEpicIds(new Set())} className="text-brand-green hover:underline font-medium">All</button>
+                      <span className="text-brand-border">|</span>
+                      <button onClick={() => setExcludedEpicIds(new Set(epics.map((e) => e.id)))} className="text-brand-gray hover:underline">None</button>
+                    </div>
                   </div>
                   <div className="p-4 space-y-3 max-h-72 overflow-y-auto">
                     {shortcutError && <div className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded p-2">{shortcutError}</div>}
@@ -513,13 +540,12 @@ export default function Home() {
                       return (
                         <div
                           key={epic.id}
-                          className={`border rounded-lg p-3 transition-opacity ${excluded || !includeEpics ? 'opacity-40 border-brand-border' : 'border-brand-border'}`}
+                          className={`border rounded-lg p-3 transition-opacity ${excluded ? 'opacity-40 border-brand-border' : 'border-brand-border'}`}
                         >
                           <div className="flex items-start gap-2">
                             <input
                               type="checkbox"
-                              checked={!excluded && includeEpics}
-                              disabled={!includeEpics}
+                              checked={!excluded}
                               onChange={() => {
                                 setExcludedEpicIds((prev) => {
                                   const next = new Set(prev);
@@ -543,25 +569,18 @@ export default function Home() {
                 </div>
 
                 {/* Figma */}
-                <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all ${includeFigma ? 'border-brand-border' : 'border-brand-border opacity-60'}`}>
+                <div className="bg-white rounded-2xl border border-brand-border shadow-sm overflow-hidden">
                   <div className="bg-brand-subtle border-b border-brand-border px-5 py-3 flex items-center gap-2">
                     <Layout size={16} className="text-pink-500" />
                     <span className="font-semibold text-sm text-brand-body">Figma</span>
                     <span className="text-xs text-brand-gray">
-                      {includeFigma ? figmaFiles.length - excludedFigmaKeys.size : 0}/{figmaFiles.length} file{figmaFiles.length !== 1 ? 's' : ''}
+                      {figmaFiles.length - excludedFigmaKeys.size}/{figmaFiles.length} file{figmaFiles.length !== 1 ? 's' : ''}
                     </span>
-                    <label className="ml-auto flex items-center gap-1.5 text-xs text-brand-gray cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={includeFigma}
-                        onChange={(e) => {
-                          setIncludeFigma(e.target.checked);
-                          if (e.target.checked) setExcludedFigmaKeys(new Set());
-                        }}
-                        className="rounded accent-[#59a985]"
-                      />
-                      Include all
-                    </label>
+                    <div className="ml-auto flex items-center gap-2 text-xs">
+                      <button onClick={() => setExcludedFigmaKeys(new Set())} className="text-brand-green hover:underline font-medium">All</button>
+                      <span className="text-brand-border">|</span>
+                      <button onClick={() => setExcludedFigmaKeys(new Set(figmaFiles.map((f) => f.key)))} className="text-brand-gray hover:underline">None</button>
+                    </div>
                   </div>
                   <div className="p-4 space-y-3 max-h-72 overflow-y-auto">
                     {figmaError && <div className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded p-2">{figmaError}</div>}
@@ -571,12 +590,11 @@ export default function Home() {
                       return (
                         <div
                           key={file.key}
-                          className={`border rounded-lg p-3 flex items-start gap-3 transition-opacity ${excluded || !includeFigma ? 'opacity-40 border-brand-border' : 'border-brand-border'}`}
+                          className={`border rounded-lg p-3 flex items-start gap-3 transition-opacity ${excluded ? 'opacity-40 border-brand-border' : 'border-brand-border'}`}
                         >
                           <input
                             type="checkbox"
-                            checked={!excluded && includeFigma}
-                            disabled={!includeFigma}
+                            checked={!excluded}
                             onChange={() => {
                               setExcludedFigmaKeys((prev) => {
                                 const next = new Set(prev);
