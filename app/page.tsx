@@ -164,18 +164,43 @@ export default function Home() {
     const guideToSend = includeGuide ? guideExcerpt : '';
     const combinedPrompt = [resultsInstructions, customPrompt].filter(Boolean).join('\n\n');
 
+    setStep('generating');
+
+    // Helper: read a streaming response fully
+    const readStream = async (res: Response): Promise<string> => {
+      if (!res.body) throw new Error('No response body');
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let text = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        text += decoder.decode(value, { stream: true });
+        // Live-update for text types only (partial HTML is not useful)
+        if (!isHtmlType(selectedAction) && selectedAction !== 'update-userguide') {
+          setGeneratedContent(text);
+        }
+      }
+      return text;
+    };
+
     if (selectedAction === 'update-userguide') {
-      setStep('generating');
       try {
         const res = await fetch('/api/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ type: selectedAction, featureName, epics: epicsToSend, figmaFiles: figmaToSend, guideExcerpt: guideToSend, customPrompt: combinedPrompt }),
         });
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        setGuideChanges(data.changes ?? []);
-        setApprovedChanges(new Set(data.changes.map((_: GuideChange, i: number) => i)));
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error ?? `API error ${res.status}`);
+        }
+        const raw = await readStream(res);
+        if (!raw.trim()) throw new Error('Claude returned empty content — please try again');
+        const cleaned = raw.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '').trim();
+        const changes: GuideChange[] = JSON.parse(cleaned);
+        setGuideChanges(changes);
+        setApprovedChanges(new Set(changes.map((_: GuideChange, i: number) => i)));
         playDoneSound();
         setStep('guide-review');
       } catch (e) {
@@ -187,7 +212,6 @@ export default function Home() {
       return;
     }
 
-    setStep('generating');
     try {
       const res = await fetch('/api/generate', {
         method: 'POST',
@@ -199,24 +223,7 @@ export default function Home() {
         throw new Error(errData.error ?? `API error ${res.status}`);
       }
 
-      let content = '';
-
-      // HTML types return a buffered JSON response; text types stream
-      if (isHtmlType(selectedAction)) {
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        content = data.content ?? '';
-      } else {
-        if (!res.body) throw new Error('No response body');
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          content += decoder.decode(value, { stream: true });
-          setGeneratedContent(content);
-        }
-      }
+      const content = await readStream(res);
 
       if (!content.trim()) throw new Error('Generation returned empty content — check your API key and try again');
       setGeneratedContent(content);

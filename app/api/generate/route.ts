@@ -8,8 +8,7 @@ export const maxDuration = 300;
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// HTML content types generate large documents — use buffered (non-streaming) calls
-// to avoid Lambda timeout / buffering issues on Amplify SSR
+// HTML types need higher token limits for full branded documents
 const HTML_TYPES: ActionType[] = ['marketing-email', 'onepager', 'blog-post', 'landing-page'];
 
 export async function POST(req: NextRequest) {
@@ -20,7 +19,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'ANTHROPIC_API_KEY is not configured' }, { status: 500 });
   }
 
-  // User guide update: non-streaming, returns structured JSON
+  // User guide update: streams JSON — client accumulates and parses when done
   if (type === 'update-userguide') {
     let currentGuide = '';
     try {
@@ -34,9 +33,9 @@ export async function POST(req: NextRequest) {
 
     const prompt = buildGuideUpdatePrompt(featureName, epics, figmaFiles, currentGuide, customPrompt, guideExcerpt);
 
-    let message;
+    let stream;
     try {
-      message = await client.messages.create({
+      stream = client.messages.stream({
         model: 'claude-sonnet-4-6',
         max_tokens: 8192,
         messages: [{ role: 'user', content: prompt }],
@@ -46,46 +45,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Claude API error: ${msg}` }, { status: 500 });
     }
 
-    const text = message.content[0].type === 'text' ? message.content[0].text : '[]';
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const event of stream) {
+            if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+              controller.enqueue(new TextEncoder().encode(event.delta.text));
+            }
+          }
+          controller.close();
+        } catch (err) {
+          controller.error(err);
+        }
+      },
+    });
 
-    let changes: GuideChange[] = [];
-    try {
-      const cleaned = text.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '').trim();
-      changes = JSON.parse(cleaned);
-    } catch {
-      return NextResponse.json({ error: 'Failed to parse guide suggestions', raw: text }, { status: 500 });
-    }
-
-    return NextResponse.json({ changes });
+    return new Response(readable, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   }
 
   const prompt = buildContentPrompt(type, featureName, epics, figmaFiles, customPrompt, guideExcerpt);
 
-  // HTML types: single buffered response (avoids Amplify streaming issues)
-  if (HTML_TYPES.includes(type)) {
-    try {
-      const message = await client.messages.create({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 6000,
-        messages: [{ role: 'user', content: prompt }],
-      });
-      const content = message.content[0].type === 'text' ? message.content[0].text : '';
-      if (!content.trim()) {
-        return NextResponse.json({ error: 'Claude returned empty content — please try again' }, { status: 500 });
-      }
-      return NextResponse.json({ content });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return NextResponse.json({ error: `Claude API error: ${msg}` }, { status: 500 });
-    }
-  }
-
-  // Text types (linkedin-post, website-change): streaming for live preview
+  // All content types stream — keeps the connection alive through Amplify's gateway timeout.
+  // HTML types use a higher token limit; the client collects silently and renders when done.
   let stream;
   try {
     stream = client.messages.stream({
       model: 'claude-sonnet-4-6',
-      max_tokens: 4096,
+      max_tokens: HTML_TYPES.includes(type) ? 8000 : 4096,
       messages: [{ role: 'user', content: prompt }],
     });
   } catch (err) {
@@ -97,10 +83,7 @@ export async function POST(req: NextRequest) {
     async start(controller) {
       try {
         for await (const event of stream) {
-          if (
-            event.type === 'content_block_delta' &&
-            event.delta.type === 'text_delta'
-          ) {
+          if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
             controller.enqueue(new TextEncoder().encode(event.delta.text));
           }
         }
@@ -111,7 +94,5 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  return new Response(readable, {
-    headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-  });
+  return new Response(readable, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
 }
