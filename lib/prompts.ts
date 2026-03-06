@@ -54,10 +54,9 @@ footer a { color: #9BA0AB; }
   h1 { font-size: 28px; }
 }`;
 
-// Logo SVG — returns inline SVG with a unique gradient ID to avoid conflicts when used multiple times per page
-function logoSvg(gradId: string, width = 130, height = 33): string {
-  return `<svg width="${width}" height="${height}" viewBox="0 0 220 56" fill="none" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="56" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#1AA9DB"/><stop offset="100%" stop-color="#2FBC88"/></linearGradient></defs><rect width="56" height="56" rx="13" fill="url(#${gradId})"/><circle cx="28" cy="28" r="15" stroke="white" stroke-width="2" fill="none"/><line x1="28" y1="28" x2="28" y2="13" stroke="white" stroke-width="2" stroke-linecap="round"/><line x1="28" y1="28" x2="41" y2="35.5" stroke="white" stroke-width="2" stroke-linecap="round"/><line x1="28" y1="28" x2="15" y2="35.5" stroke="white" stroke-width="2" stroke-linecap="round"/><circle cx="28" cy="28" r="2.8" fill="white"/><circle cx="28" cy="13" r="3.2" fill="white"/><circle cx="41" cy="35.5" r="3.2" fill="white"/><circle cx="15" cy="35.5" r="3.2" fill="white"/><text x="70" y="40" font-family="Inter,sans-serif" font-weight="700" font-size="30" letter-spacing="-0.4" fill="#171C33">opstream</text></svg>`;
-}
+// Logo placeholder — replaced client-side with the real base64 image after Claude responds.
+// This prevents Claude from ever seeing or modifying the logo markup.
+const LOGO = '[[LOGO]]';
 
 function buildContext(
   featureName: string,
@@ -147,8 +146,6 @@ Use this exact template — fill in every [bracketed placeholder] with specific,
   body { margin: 0; padding: 0; background: #F4F5F7; font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; }
   .wrapper { max-width: 600px; margin: 32px auto; background: #fff; border-radius: 12px; overflow: hidden; border: 1px solid #E8EAED; }
   .header { background: #171C33; padding: 24px 40px; display: flex; align-items: center; gap: 12px; }
-  .logo-icon { width: 32px; height: 32px; background: linear-gradient(180deg, #1AA9DB 0%, #2FBC88 100%); border-radius: 8px; display: inline-block; }
-  .logo-text { font-size: 20px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
   .accent { height: 4px; background: linear-gradient(90deg, #59a985, #1AA9DB); }
   .body { padding: 40px; color: #4a4a4a; font-size: 15px; line-height: 1.7; }
   .body h1 { color: #171C33; font-size: 24px; font-weight: 700; margin: 0 0 20px; line-height: 1.3; }
@@ -166,8 +163,7 @@ Use this exact template — fill in every [bracketed placeholder] with specific,
 <body>
 <div class="wrapper">
   <div class="header">
-    <span class="logo-icon"></span>
-    <span class="logo-text">opstream</span>
+    ${LOGO}
   </div>
   <div class="accent"></div>
   <div class="body">
@@ -219,7 +215,7 @@ ${OPSTREAM_CSS}
 <nav>
   <div class="container">
     <div class="nav-inner">
-      ${logoSvg('op-nav')}
+      ${LOGO}
       <span class="nav-badge">Product Overview</span>
     </div>
   </div>
@@ -335,7 +331,7 @@ ${OPSTREAM_CSS}
 <footer>
   <div class="container">
     <div class="footer-inner">
-      ${logoSvg('op-footer')}
+      ${LOGO}
       <p style="font-size:13px;">© 2025 OpStream · <a href="https://${SITE_URL}">${SITE_URL}</a></p>
     </div>
   </div>
@@ -389,7 +385,7 @@ Output ONLY valid, complete HTML — no markdown fences, no commentary.
 
 <nav>
   <div class="nav-inner">
-    ${logoSvg('op-blog-nav', 120, 30)}
+    ${LOGO}
     <a href="https://${SITE_URL}" class="nav-cta">Try OpStream →</a>
   </div>
 </nav>
@@ -515,7 +511,7 @@ ${OPSTREAM_CSS}
 <nav>
   <div class="container">
     <div class="nav-inner">
-      ${logoSvg('op-lp-nav')}
+      ${LOGO}
       <ul class="nav-links">
         <li><a href="#">Features</a></li>
         <li><a href="#">Pricing</a></li>
@@ -632,7 +628,7 @@ ${OPSTREAM_CSS}
 <footer>
   <div class="container">
     <div class="footer-inner">
-      ${logoSvg('op-lp-footer')}
+      ${LOGO}
       <p style="font-size:13px;">© 2025 OpStream · <a href="https://${SITE_URL}">${SITE_URL}</a></p>
     </div>
   </div>

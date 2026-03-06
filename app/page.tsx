@@ -8,7 +8,7 @@ import {
   Search, Settings, CheckCircle, Loader2,
   FileText, Mail, Layout, BookOpen, Linkedin, Globe, Wrench,
   ExternalLink, ChevronRight, ArrowLeft, Save, Edit3, X, Check,
-  AlertCircle, RefreshCw
+  AlertCircle, RefreshCw, Copy, Download
 } from 'lucide-react';
 import type { ShortcutEpic, FigmaFile, ActionType, GuideChange } from '@/types';
 import { buildContentPrompt, buildGuideUpdatePrompt } from '@/lib/prompts';
@@ -20,6 +20,14 @@ const anthropic = new Anthropic({
   apiKey: process.env.NEXT_PUBLIC_ANTHROPIC_API_KEY ?? '',
   dangerouslyAllowBrowser: true,
 });
+
+// The real logo as a base64 <img> — injected after Claude responds so Claude
+// never sees or can modify it. Using a data URI makes the HTML self-contained.
+const LOGO_IMG = '<img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjIwIiBoZWlnaHQ9IjU2IiB2aWV3Qm94PSIwIDAgMjIwIDU2IiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgogIDxkZWZzPgogICAgPGxpbmVhckdyYWRpZW50IGlkPSJpY29uR3JhZCIgeDE9IjAiIHkxPSIwIiB4Mj0iMCIgeTI9IjU2IiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiMxQUE5REIiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxMDAlIiBzdG9wLWNvbG9yPSIjMkZCQzg4Ii8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogIDwvZGVmcz4KCiAgPCEtLSBJY29uOiByb3VuZGVkIHNxdWFyZSBiYWNrZ3JvdW5kIC0tPgogIDxyZWN0IHdpZHRoPSI1NiIgaGVpZ2h0PSI1NiIgcng9IjEzIiBmaWxsPSJ1cmwoI2ljb25HcmFkKSIvPgoKICA8IS0tIE91dGVyIHJpbmcgLS0+CiAgPGNpcmNsZSBjeD0iMjgiIGN5PSIyOCIgcj0iMTUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMiIgZmlsbD0ibm9uZSIvPgoKICA8IS0tIEh1YiBzcG9rZXMgLS0+CiAgPGxpbmUgeDE9IjI4IiB5MT0iMjgiIHgyPSIyOCIgeTI9IjEzIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogIDxsaW5lIHgxPSIyOCIgeTE9IjI4IiB4Mj0iNDEiIHkyPSIzNS41IiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogIDxsaW5lIHgxPSIyOCIgeTE9IjI4IiB4Mj0iMTUiIHkyPSIzNS41IiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgoKICA8IS0tIENlbnRlciBodWIgLS0+CiAgPGNpcmNsZSBjeD0iMjgiIGN5PSIyOCIgcj0iMi44IiBmaWxsPSJ3aGl0ZSIvPgoKICA8IS0tIE5vZGUgZG90cyAtLT4KICA8Y2lyY2xlIGN4PSIyOCIgY3k9IjEzIiByPSIzLjIiIGZpbGw9IndoaXRlIi8+CiAgPGNpcmNsZSBjeD0iNDEiIGN5PSIzNS41IiByPSIzLjIiIGZpbGw9IndoaXRlIi8+CiAgPGNpcmNsZSBjeD0iMTUiIGN5PSIzNS41IiByPSIzLjIiIGZpbGw9IndoaXRlIi8+CgogIDwhLS0gV29yZG1hcmsgLS0+CiAgPHRleHQgeD0iNzAiIHk9IjQwIiBmb250LWZhbWlseT0iSW50ZXIsIC1hcHBsZS1zeXN0ZW0sIEJsaW5rTWFjU3lzdGVtRm9udCwgc2Fucy1zZXJpZiIgZm9udC13ZWlnaHQ9IjcwMCIgZm9udC1zaXplPSIzMCIgbGV0dGVyLXNwYWNpbmc9Ii0wLjQiIGZpbGw9IiMxNzFDMzMiPm9wc3RyZWFtPC90ZXh0Pgo8L3N2Zz4K" alt="Opstream" height="44" style="height:44px;width:auto;display:block">';
+
+function injectLogo(html: string): string {
+  return html.replaceAll('[[LOGO]]', LOGO_IMG);
+}
 
 type Step = 'search' | 'results' | 'action' | 'generating' | 'preview' | 'guide-review' | 'saved';
 
@@ -108,6 +116,7 @@ export default function Home() {
   const [guideExists, setGuideExists] = useState(false);
   const [customPrompt, setCustomPrompt] = useState('');
   const [showPrompt, setShowPrompt] = useState(false);
+  const [copyDone, setCopyDone] = useState(false);
 
   const [guideExcerpt, setGuideExcerpt] = useState('');
   const [isLoadingGuide, setIsLoadingGuide] = useState(false);
@@ -277,7 +286,8 @@ export default function Home() {
     try {
       const prompt = buildContentPrompt(selectedAction, combinedFeatureName, epicsToSend, figmaToSend, combinedPrompt, guideToSend);
       const maxTokens = isHtmlType(selectedAction) ? 8000 : 4096;
-      const content = (await streamClaude(prompt, maxTokens)).trim();
+      const raw = (await streamClaude(prompt, maxTokens)).trim();
+      const content = isHtmlType(selectedAction) ? injectLogo(raw) : raw;
 
       if (!content) throw new Error('Generation returned empty content — check your API key and try again');
       setGeneratedContent(content);
@@ -735,6 +745,34 @@ export default function Home() {
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${isEditing ? 'bg-brand-subtle text-brand-body' : 'border border-brand-border text-brand-body hover:bg-brand-subtle'}`}
                   >
                     <Edit3 size={14} /> {isEditing ? 'Preview' : 'Edit'}
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const content = isEditing ? editContent : generatedContent;
+                      await navigator.clipboard.writeText(content);
+                      setCopyDone(true);
+                      setTimeout(() => setCopyDone(false), 2000);
+                    }}
+                    className="flex items-center gap-1.5 border border-brand-border text-brand-body px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-brand-subtle transition-colors"
+                  >
+                    {copyDone ? <Check size={14} className="text-brand-green" /> : <Copy size={14} />}
+                    {copyDone ? 'Copied!' : 'Copy'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      const content = isEditing ? editContent : generatedContent;
+                      const ext = isHtmlType(selectedAction) ? 'html' : 'md';
+                      const slug = (featureNames.join('-') || featureName).toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                      const filename = `${slug}-${selectedAction}.${ext}`;
+                      const blob = new Blob([content], { type: 'text/plain' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url; a.download = filename; a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                    className="flex items-center gap-1.5 border border-brand-border text-brand-body px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-brand-subtle transition-colors"
+                  >
+                    <Download size={14} /> Download
                   </button>
                   <button
                     onClick={handleSave}
