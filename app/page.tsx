@@ -114,6 +114,8 @@ export default function Home() {
   const [includeEpics, setIncludeEpics] = useState(true);
   const [includeFigma, setIncludeFigma] = useState(true);
   const [includeGuide, setIncludeGuide] = useState(true);
+  const [excludedEpicIds, setExcludedEpicIds] = useState<Set<number>>(new Set());
+  const [excludedFigmaKeys, setExcludedFigmaKeys] = useState<Set<string>>(new Set());
   const [resultsInstructions, setResultsInstructions] = useState('');
   const [showGuide, setShowGuide] = useState(false);
 
@@ -142,6 +144,8 @@ export default function Home() {
     setGuideExcerpt('');
     setIsLoadingGuide(true);
     setFeatureNames(names);
+    setExcludedEpicIds(new Set());
+    setExcludedFigmaKeys(new Set());
 
     // Start guide fetch non-blocking (search using all names joined)
     const combinedQuery = names.join(' ');
@@ -216,8 +220,8 @@ export default function Home() {
     setIsGenerating(true);
     setGeneratedContent('');
 
-    const epicsToSend = includeEpics ? epics : [];
-    const figmaToSend = includeFigma ? figmaFiles : [];
+    const epicsToSend = includeEpics ? epics.filter((e) => !excludedEpicIds.has(e.id)) : [];
+    const figmaToSend = includeFigma ? figmaFiles.filter((f) => !excludedFigmaKeys.has(f.key)) : [];
     const guideToSend = includeGuide ? guideExcerpt : '';
     const combinedPrompt = [resultsInstructions, customPrompt].filter(Boolean).join('\n\n');
     const combinedFeatureName = featureNames.length > 0 ? featureNames.join(' and ') : featureName;
@@ -340,6 +344,8 @@ export default function Home() {
     setIncludeEpics(true);
     setIncludeFigma(true);
     setIncludeGuide(true);
+    setExcludedEpicIds(new Set());
+    setExcludedFigmaKeys(new Set());
     setResultsInstructions('');
     setShowGuide(false);
   };
@@ -473,27 +479,56 @@ export default function Home() {
                   <div className="bg-brand-subtle border-b border-brand-border px-5 py-3 flex items-center gap-2">
                     <Wrench size={16} className="text-brand-green" />
                     <span className="font-semibold text-sm text-brand-body">Shortcut</span>
-                    <span className="text-xs text-brand-gray">{epics.length} epic{epics.length !== 1 ? 's' : ''}</span>
+                    <span className="text-xs text-brand-gray">
+                      {includeEpics ? epics.length - excludedEpicIds.size : 0}/{epics.length} epic{epics.length !== 1 ? 's' : ''}
+                    </span>
                     <label className="ml-auto flex items-center gap-1.5 text-xs text-brand-gray cursor-pointer select-none">
-                      <input type="checkbox" checked={includeEpics} onChange={(e) => setIncludeEpics(e.target.checked)} className="rounded accent-[#59a985]" />
-                      Include
+                      <input
+                        type="checkbox"
+                        checked={includeEpics}
+                        onChange={(e) => {
+                          setIncludeEpics(e.target.checked);
+                          if (e.target.checked) setExcludedEpicIds(new Set());
+                        }}
+                        className="rounded accent-[#59a985]"
+                      />
+                      Include all
                     </label>
                   </div>
                   <div className="p-4 space-y-3 max-h-72 overflow-y-auto">
                     {shortcutError && <div className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded p-2">{shortcutError}</div>}
                     {epics.length === 0 && !shortcutError && <p className="text-sm text-brand-gray text-center py-4">No epics found</p>}
-                    {epics.map((epic) => (
-                      <div key={epic.id} className="border border-brand-border rounded-lg p-3">
-                        <div className="flex items-start gap-2">
-                          <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium mt-0.5 flex-shrink-0">EPIC</span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-brand-body truncate">{epic.name}</p>
-                            {epic.description && <p className="text-xs text-brand-gray mt-0.5 line-clamp-2">{epic.description}</p>}
+                    {epics.map((epic) => {
+                      const excluded = excludedEpicIds.has(epic.id);
+                      return (
+                        <div
+                          key={epic.id}
+                          className={`border rounded-lg p-3 transition-opacity ${excluded || !includeEpics ? 'opacity-40 border-brand-border' : 'border-brand-border'}`}
+                        >
+                          <div className="flex items-start gap-2">
+                            <input
+                              type="checkbox"
+                              checked={!excluded && includeEpics}
+                              disabled={!includeEpics}
+                              onChange={() => {
+                                setExcludedEpicIds((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(epic.id)) next.delete(epic.id); else next.add(epic.id);
+                                  return next;
+                                });
+                              }}
+                              className="mt-0.5 flex-shrink-0 accent-[#59a985]"
+                            />
+                            <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium mt-0.5 flex-shrink-0">EPIC</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-brand-body truncate">{epic.name}</p>
+                              {epic.description && <p className="text-xs text-brand-gray mt-0.5 line-clamp-2">{epic.description}</p>}
+                            </div>
+                            {epic.app_url && <a href={epic.app_url} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-green flex-shrink-0"><ExternalLink size={12} /></a>}
                           </div>
-                          {epic.app_url && <a href={epic.app_url} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-green flex-shrink-0"><ExternalLink size={12} /></a>}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -502,30 +537,59 @@ export default function Home() {
                   <div className="bg-brand-subtle border-b border-brand-border px-5 py-3 flex items-center gap-2">
                     <Layout size={16} className="text-pink-500" />
                     <span className="font-semibold text-sm text-brand-body">Figma</span>
-                    <span className="text-xs text-brand-gray">{figmaFiles.length} file{figmaFiles.length !== 1 ? 's' : ''}</span>
+                    <span className="text-xs text-brand-gray">
+                      {includeFigma ? figmaFiles.length - excludedFigmaKeys.size : 0}/{figmaFiles.length} file{figmaFiles.length !== 1 ? 's' : ''}
+                    </span>
                     <label className="ml-auto flex items-center gap-1.5 text-xs text-brand-gray cursor-pointer select-none">
-                      <input type="checkbox" checked={includeFigma} onChange={(e) => setIncludeFigma(e.target.checked)} className="rounded accent-[#59a985]" />
-                      Include
+                      <input
+                        type="checkbox"
+                        checked={includeFigma}
+                        onChange={(e) => {
+                          setIncludeFigma(e.target.checked);
+                          if (e.target.checked) setExcludedFigmaKeys(new Set());
+                        }}
+                        className="rounded accent-[#59a985]"
+                      />
+                      Include all
                     </label>
                   </div>
                   <div className="p-4 space-y-3 max-h-72 overflow-y-auto">
                     {figmaError && <div className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded p-2">{figmaError}</div>}
                     {figmaFiles.length === 0 && !figmaError && <p className="text-sm text-brand-gray text-center py-4">No matching files found</p>}
-                    {figmaFiles.map((file) => (
-                      <div key={file.key} className="border border-brand-border rounded-lg p-3 flex items-start gap-3">
-                        {file.thumbnail_url ? (
-                          <img src={file.thumbnail_url} alt={file.name} className="w-12 h-9 object-cover rounded flex-shrink-0 bg-brand-subtle" />
-                        ) : (
-                          <div className="w-12 h-9 bg-pink-50 rounded flex-shrink-0 flex items-center justify-center"><Layout size={16} className="text-pink-300" /></div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-brand-body truncate">{file.name}</p>
-                          {file.project_name && <p className="text-xs text-brand-gray mt-0.5">{file.project_name}</p>}
-                          <p className="text-xs text-brand-gray">{new Date(file.last_modified).toLocaleDateString()}</p>
+                    {figmaFiles.map((file) => {
+                      const excluded = excludedFigmaKeys.has(file.key);
+                      return (
+                        <div
+                          key={file.key}
+                          className={`border rounded-lg p-3 flex items-start gap-3 transition-opacity ${excluded || !includeFigma ? 'opacity-40 border-brand-border' : 'border-brand-border'}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={!excluded && includeFigma}
+                            disabled={!includeFigma}
+                            onChange={() => {
+                              setExcludedFigmaKeys((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(file.key)) next.delete(file.key); else next.add(file.key);
+                                return next;
+                              });
+                            }}
+                            className="mt-1 flex-shrink-0 accent-[#59a985]"
+                          />
+                          {file.thumbnail_url ? (
+                            <img src={file.thumbnail_url} alt={file.name} className="w-12 h-9 object-cover rounded flex-shrink-0 bg-brand-subtle" />
+                          ) : (
+                            <div className="w-12 h-9 bg-pink-50 rounded flex-shrink-0 flex items-center justify-center"><Layout size={16} className="text-pink-300" /></div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-brand-body truncate">{file.name}</p>
+                            {file.project_name && <p className="text-xs text-brand-gray mt-0.5">{file.project_name}</p>}
+                            <p className="text-xs text-brand-gray">{new Date(file.last_modified).toLocaleDateString()}</p>
+                          </div>
+                          <a href={`https://www.figma.com/file/${file.key}`} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-pink-500 flex-shrink-0"><ExternalLink size={12} /></a>
                         </div>
-                        <a href={`https://www.figma.com/file/${file.key}`} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-pink-500 flex-shrink-0"><ExternalLink size={12} /></a>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>
