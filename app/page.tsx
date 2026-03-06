@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
-  Search, Settings, Upload, CheckCircle, XCircle, Loader2,
+  Search, Settings, CheckCircle, Loader2,
   FileText, Mail, Layout, BookOpen, Linkedin, Globe, Wrench,
   ExternalLink, ChevronRight, ArrowLeft, Save, Edit3, X, Check,
   AlertCircle, RefreshCw
@@ -50,11 +50,6 @@ export default function Home() {
   const [savedPath, setSavedPath] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [guideExists, setGuideExists] = useState(false);
-  const [isUploadingGuide, setIsUploadingGuide] = useState(false);
-  const [uploadSuccess, setUploadSuccess] = useState('');
-  const [uploadError, setUploadError] = useState('');
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Check if user guide exists on mount
   useEffect(() => {
@@ -201,27 +196,6 @@ export default function Home() {
     }
   };
 
-  const handleGuideUpload = useCallback(async (file: File) => {
-    setIsUploadingGuide(true);
-    setUploadError('');
-    setUploadSuccess('');
-    const formData = new FormData();
-    formData.append('file', file);
-    try {
-      const res = await fetch('/api/userguide', { method: 'POST', body: formData });
-      const data = await res.json();
-      if (data.success) {
-        setGuideExists(true);
-        setUploadSuccess(`User guide uploaded (${Math.round(data.size / 1024 * 10) / 10} KB)`);
-      } else {
-        setUploadError(data.error ?? 'Upload failed');
-      }
-    } catch {
-      setUploadError('Upload failed');
-    } finally {
-      setIsUploadingGuide(false);
-    }
-  }, []);
 
   const resetFlow = () => {
     setStep('search');
@@ -299,8 +273,8 @@ export default function Home() {
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 flex gap-3 items-start">
                   <AlertCircle size={18} className="text-amber-500 mt-0.5 flex-shrink-0" />
                   <div className="text-sm text-amber-800">
-                    <p className="font-medium">No user guide uploaded yet.</p>
-                    <p className="mt-0.5">Open <button onClick={() => setShowSettings(true)} className="underline font-medium">Settings</button> to upload your user guide before generating content updates.</p>
+                    <p className="font-medium">Could not load the user guide from Google Drive.</p>
+                    <p className="mt-0.5">Make sure the document is shared with "Anyone with the link" and try again.</p>
                   </div>
                 </div>
               )}
@@ -663,7 +637,7 @@ export default function Home() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
               <h3 className="text-lg font-bold text-slate-900">Settings</h3>
-              <button onClick={() => { setShowSettings(false); setUploadSuccess(''); setUploadError(''); }} className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => setShowSettings(false)} className="text-slate-400 hover:text-slate-600">
                 <X size={20} />
               </button>
             </div>
@@ -698,40 +672,19 @@ export default function Home() {
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1">
                   User Guide
-                  {guideExists && <span className="ml-2 text-xs text-green-600 font-normal">✓ Uploaded</span>}
+                  {guideExists && <span className="ml-2 text-xs text-green-600 font-normal">✓ Connected</span>}
                 </label>
-                <p className="text-xs text-slate-500 mb-3">Upload a Markdown or plain text (.md, .txt) file. It will be stored as <span className="font-mono">data/userguide.md</span>.</p>
-
-                {uploadSuccess && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-2 mb-3 text-sm text-green-700 flex items-center gap-2">
-                    <CheckCircle size={14} /> {uploadSuccess}
-                  </div>
-                )}
-                {uploadError && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-2 mb-3 text-sm text-red-700 flex items-center gap-2">
-                    <XCircle size={14} /> {uploadError}
-                  </div>
-                )}
-
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".md,.txt,.markdown"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleGuideUpload(file);
-                  }}
-                />
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploadingGuide}
-                  className="w-full border-2 border-dashed border-slate-300 rounded-xl py-4 flex flex-col items-center gap-2 text-slate-500 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all disabled:opacity-50"
+                <p className="text-xs text-slate-500 mb-3">The user guide is loaded from Google Drive and used by AI to suggest updates.</p>
+                <a
+                  href="https://docs.google.com/document/d/1YM_4b6Yt3U1DfeZo5YQey-TW4Avn67fsVNEiJsAOuMc/edit"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full flex items-center gap-3 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors"
                 >
-                  {isUploadingGuide ? <Loader2 size={20} className="animate-spin" /> : <Upload size={20} />}
-                  <span className="text-sm font-medium">{guideExists ? 'Replace User Guide' : 'Upload User Guide'}</span>
-                  <span className="text-xs">.md or .txt files</span>
-                </button>
+                  <FileText size={18} className="text-slate-400 flex-shrink-0" />
+                  <span className="flex-1">Open User Guide in Google Drive</span>
+                  <ExternalLink size={14} className="text-slate-400 flex-shrink-0" />
+                </a>
               </div>
             </div>
           </div>

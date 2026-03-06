@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { promises as fs } from 'fs';
-import path from 'path';
 import { buildContentPrompt, buildGuideUpdatePrompt } from '@/lib/prompts';
 import type { GenerateRequest, GuideChange } from '@/types';
 
@@ -19,12 +17,12 @@ export async function POST(req: NextRequest) {
   if (type === 'update-userguide') {
     let currentGuide = '';
     try {
-      currentGuide = await fs.readFile(
-        path.join(process.cwd(), 'data', 'userguide.md'),
-        'utf-8'
+      const gdocRes = await fetch(
+        `https://docs.google.com/document/d/1YM_4b6Yt3U1DfeZo5YQey-TW4Avn67fsVNEiJsAOuMc/export?format=txt`
       );
+      if (gdocRes.ok) currentGuide = await gdocRes.text();
     } catch {
-      currentGuide = '(No user guide uploaded yet)';
+      currentGuide = '(User guide unavailable)';
     }
 
     const prompt = buildGuideUpdatePrompt(featureName, epics, stories, figmaFiles, currentGuide);
