@@ -47,16 +47,18 @@ export async function POST(req: NextRequest) {
 
     const readable = new ReadableStream({
       async start(controller) {
+        const enc = new TextEncoder();
         try {
           for await (const event of stream) {
             if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-              controller.enqueue(new TextEncoder().encode(event.delta.text));
+              controller.enqueue(enc.encode(event.delta.text));
             }
           }
-          controller.close();
         } catch (err) {
-          controller.error(err);
+          const msg = err instanceof Error ? err.message : String(err);
+          controller.enqueue(enc.encode(`\x00ERROR:${msg}`));
         }
+        controller.close();
       },
     });
 
@@ -67,30 +69,26 @@ export async function POST(req: NextRequest) {
 
   // All content types stream — keeps the connection alive through Amplify's gateway timeout.
   // HTML types use a higher token limit; the client collects silently and renders when done.
-  let stream;
-  try {
-    stream = client.messages.stream({
-      model: 'claude-sonnet-4-6',
-      max_tokens: HTML_TYPES.includes(type) ? 8000 : 4096,
-      messages: [{ role: 'user', content: prompt }],
-    });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: `Claude API error: ${msg}` }, { status: 500 });
-  }
+  const stream = client.messages.stream({
+    model: 'claude-sonnet-4-6',
+    max_tokens: HTML_TYPES.includes(type) ? 8000 : 4096,
+    messages: [{ role: 'user', content: prompt }],
+  });
 
   const readable = new ReadableStream({
     async start(controller) {
+      const enc = new TextEncoder();
       try {
         for await (const event of stream) {
           if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-            controller.enqueue(new TextEncoder().encode(event.delta.text));
+            controller.enqueue(enc.encode(event.delta.text));
           }
         }
-        controller.close();
       } catch (err) {
-        controller.error(err);
+        const msg = err instanceof Error ? err.message : String(err);
+        controller.enqueue(enc.encode(`\x00ERROR:${msg}`));
       }
+      controller.close();
     },
   });
 

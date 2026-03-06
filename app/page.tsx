@@ -166,7 +166,9 @@ export default function Home() {
 
     setStep('generating');
 
-    // Helper: read a streaming response fully
+    // Helper: read a streaming response fully.
+    // The server encodes API errors as \x00ERROR:<msg> at the end of the stream
+    // (instead of using controller.error(), which causes a 500 on Amplify).
     const readStream = async (res: Response): Promise<string> => {
       if (!res.body) throw new Error('No response body');
       const reader = res.body.getReader();
@@ -181,6 +183,8 @@ export default function Home() {
           setGeneratedContent(text);
         }
       }
+      const errIdx = text.indexOf('\x00ERROR:');
+      if (errIdx !== -1) throw new Error(text.slice(errIdx + 7));
       return text;
     };
 
