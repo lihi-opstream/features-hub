@@ -1,23 +1,17 @@
-import type { ShortcutEpic, ShortcutStory, FigmaFile, ActionType } from '@/types';
+import type { ShortcutEpic, FigmaFile, ActionType } from '@/types';
 
 const SITE_URL = 'www.opstream.ai';
+const BRAND_NOTE = `
+Brand: OpStream — colors: green #59a985, navy #171C33. Always style output to match Opstream's clean, professional look and feel.`;
 
 function buildContext(
   featureName: string,
   epics: ShortcutEpic[],
-  stories: ShortcutStory[],
   figmaFiles: FigmaFile[]
 ): string {
   const epicLines = epics.length
     ? epics.map((e) => `- Epic: "${e.name}" — ${e.description || 'No description'}`).join('\n')
     : '- No epics found';
-
-  const storyLines = stories.length
-    ? stories
-        .slice(0, 10)
-        .map((s) => `- [${s.story_type}] "${s.name}" — ${s.description || 'No description'}`)
-        .join('\n')
-    : '- No stories found';
 
   const figmaLines = figmaFiles.length
     ? figmaFiles.map((f) => `- "${f.name}"${f.project_name ? ` (${f.project_name})` : ''}`).join('\n')
@@ -28,9 +22,6 @@ function buildContext(
 Product Context (from Shortcut):
 ${epicLines}
 
-Stories:
-${storyLines}
-
 Design Files (from Figma):
 ${figmaLines}
 
@@ -40,11 +31,11 @@ Site: ${SITE_URL}`;
 export function buildGuideUpdatePrompt(
   featureName: string,
   epics: ShortcutEpic[],
-  stories: ShortcutStory[],
   figmaFiles: FigmaFile[],
-  currentGuide: string
+  currentGuide: string,
+  customPrompt?: string
 ): string {
-  const ctx = buildContext(featureName, epics, stories, figmaFiles);
+  const ctx = buildContext(featureName, epics, figmaFiles);
   return `You are a technical writer helping to update the user guide for OpStream (${SITE_URL}).
 
 ${ctx}
@@ -55,7 +46,7 @@ ${currentGuide}
 ---
 
 Analyze the user guide and the feature information above. Suggest specific, actionable additions or modifications to document this new feature.
-
+${customPrompt ? `\nAdditional instructions: ${customPrompt}\n` : ''}
 Respond with a JSON array (no markdown fences, just raw JSON). Each item must have:
 - "section": the section title to add to or modify (or "New Section: <name>" for new content)
 - "type": "add" | "modify"
@@ -70,11 +61,12 @@ export function buildContentPrompt(
   type: Exclude<ActionType, 'update-userguide'>,
   featureName: string,
   epics: ShortcutEpic[],
-  stories: ShortcutStory[],
-  figmaFiles: FigmaFile[]
+  figmaFiles: FigmaFile[],
+  customPrompt?: string
 ): string {
-  const ctx = buildContext(featureName, epics, stories, figmaFiles);
-  const baseInstruction = `You are a professional content writer for OpStream (${SITE_URL}), a SaaS platform.\n\n${ctx}\n\n`;
+  const ctx = buildContext(featureName, epics, figmaFiles);
+  const baseInstruction = `You are a professional content writer for OpStream (${SITE_URL}), a SaaS platform.${BRAND_NOTE}\n\n${ctx}\n\n`;
+  const customNote = customPrompt ? `\n\nAdditional instructions: ${customPrompt}` : '';
 
   switch (type) {
     case 'marketing-email':
@@ -92,7 +84,7 @@ Then the email body in markdown:
 - Call to action linking to ${SITE_URL}
 - Professional sign-off from the OpStream Team
 
-Keep the tone warm, professional, and benefit-focused.`
+Keep the tone warm, professional, and benefit-focused.${customNote}`
       );
 
     case 'onepager':
@@ -110,7 +102,7 @@ Include:
 ## Get Started
 [CTA with ${SITE_URL}]
 
-Keep it concise, punchy, and persuasive. Use markdown formatting.`
+Keep it concise, punchy, and persuasive. Use markdown formatting.${customNote}`
       );
 
     case 'blog-post':
@@ -128,7 +120,7 @@ Structure:
 ## How to Get Started
 ## Conclusion (CTA to ${SITE_URL})
 
-Write in a conversational yet professional tone. Target audience: product managers and team leads. ~600-800 words.`
+Write in a conversational yet professional tone. Target audience: product managers and team leads. ~600-800 words.${customNote}`
       );
 
     case 'linkedin-post':
@@ -143,24 +135,25 @@ Requirements:
 - 3-5 relevant hashtags at the end
 - Include ${SITE_URL}
 - Professional but conversational tone
-- Focus on the problem it solves and the value delivered`
+- Focus on the problem it solves and the value delivered${customNote}`
       );
 
     case 'landing-page':
       return (
         baseInstruction +
-        `Create the content and HTML structure for a landing page for the "${featureName}" feature.
+        `Create a complete, production-ready HTML landing page for the "${featureName}" feature.
 
-Provide a complete HTML page with inline Tailwind CSS classes (use CDN). Include:
-- Hero section: headline, subheadline, primary CTA button
+Use inline Tailwind CSS (CDN). Apply Opstream branding: primary color #59a985 (green), dark navy #171C33, white backgrounds, clean typography.
+
+Include:
+- Hero section: bold headline, subheadline, green CTA button
 - Problem section: the pain point this solves
 - Feature highlights: 3 key benefits with icons (use emoji)
 - How it works: 3-step process
-- Social proof placeholder section
-- Final CTA section
+- Final CTA section with green button
 - Footer with ${SITE_URL}
 
-Use a clean, modern design with indigo/purple color scheme. Make it production-ready.`
+Output only the complete HTML. Make it polished and professional.${customNote}`
       );
 
     case 'website-change':
@@ -175,10 +168,10 @@ For each suggested change provide:
 4. **Priority**: High / Medium / Low
 5. **Rationale**: Why this change drives conversions or improves clarity
 
-Cover: homepage hero, features page, navigation, and any new landing page needs. Be specific and actionable.`
+Cover: homepage hero, features page, navigation, and any new landing page needs. Be specific and actionable.${customNote}`
       );
 
     default:
-      return baseInstruction + `Write comprehensive content about the "${featureName}" feature.`;
+      return baseInstruction + `Write comprehensive content about the "${featureName}" feature.${customNote}`;
   }
 }

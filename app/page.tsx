@@ -9,7 +9,7 @@ import {
   ExternalLink, ChevronRight, ArrowLeft, Save, Edit3, X, Check,
   AlertCircle, RefreshCw
 } from 'lucide-react';
-import type { ShortcutEpic, ShortcutStory, FigmaFile, ActionType, GuideChange } from '@/types';
+import type { ShortcutEpic, FigmaFile, ActionType, GuideChange } from '@/types';
 
 type Step = 'search' | 'results' | 'action' | 'generating' | 'preview' | 'guide-review' | 'saved';
 
@@ -67,7 +67,6 @@ export default function Home() {
   const [searchError, setSearchError] = useState('');
 
   const [epics, setEpics] = useState<ShortcutEpic[]>([]);
-  const [stories, setStories] = useState<ShortcutStory[]>([]);
   const [figmaFiles, setFigmaFiles] = useState<FigmaFile[]>([]);
   const [shortcutError, setShortcutError] = useState('');
   const [figmaError, setFigmaError] = useState('');
@@ -85,6 +84,8 @@ export default function Home() {
   const [savedPath, setSavedPath] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [guideExists, setGuideExists] = useState(false);
+  const [customPrompt, setCustomPrompt] = useState('');
+  const [showPrompt, setShowPrompt] = useState(false);
 
   useEffect(() => {
     fetch('/api/userguide')
@@ -115,7 +116,6 @@ export default function Home() {
       const figmaData = await figmaRes.json();
 
       setEpics(scData.epics ?? []);
-      setStories(scData.stories ?? []);
       setFigmaFiles(figmaData.files ?? []);
       if (scData.error) setShortcutError(scData.error);
       if (figmaData.error) setFigmaError(figmaData.error);
@@ -138,7 +138,7 @@ export default function Home() {
         const res = await fetch('/api/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: selectedAction, featureName, epics, stories, figmaFiles }),
+          body: JSON.stringify({ type: selectedAction, featureName, epics, figmaFiles, customPrompt }),
         });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
@@ -159,7 +159,7 @@ export default function Home() {
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: selectedAction, featureName, epics, stories, figmaFiles }),
+        body: JSON.stringify({ type: selectedAction, featureName, epics, figmaFiles, customPrompt }),
       });
       if (!res.body) throw new Error('No response body');
       const reader = res.body.getReader();
@@ -215,7 +215,6 @@ export default function Home() {
     setStep('search');
     setFeatureName('');
     setEpics([]);
-    setStories([]);
     setFigmaFiles([]);
     setSelectedAction(null);
     setGeneratedContent('');
@@ -225,6 +224,8 @@ export default function Home() {
     setSavedPath('');
     setSearchError('');
     setIsEditing(false);
+    setCustomPrompt('');
+    setShowPrompt(false);
   };
 
   return (
@@ -249,14 +250,20 @@ export default function Home() {
               const cur = currentStepIndex();
               const done = i < cur;
               const active = i === cur;
+              const stepKeys: Step[] = ['search', 'results', 'action', 'action'];
+              const clickable = done;
               return (
                 <div key={s} className="flex items-center">
-                  <div className={`flex items-center gap-2 text-sm font-medium ${active ? 'text-brand-green' : done ? 'text-brand-gray' : 'text-brand-border'}`}>
+                  <button
+                    onClick={() => clickable && setStep(stepKeys[i])}
+                    disabled={!clickable}
+                    className={`flex items-center gap-2 text-sm font-medium ${active ? 'text-brand-green' : done ? 'text-brand-gray hover:text-brand-body' : 'text-brand-border'} ${clickable ? 'cursor-pointer' : 'cursor-default'}`}
+                  >
                     <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs border-2 ${active ? 'border-brand-green bg-brand-green text-white' : done ? 'border-brand-gray bg-brand-gray text-white' : 'border-brand-border text-brand-border'}`}>
                       {done ? <Check size={12} /> : i + 1}
                     </div>
                     {s}
-                  </div>
+                  </button>
                   {i < STEPS.length - 1 && (
                     <ChevronRight size={14} className="mx-2 text-brand-border" />
                   )}
@@ -316,7 +323,7 @@ export default function Home() {
           {step === 'results' && (
             <div className="space-y-4">
               <div className="flex items-center gap-3 mb-6">
-                <button onClick={() => setStep('search')} className="text-brand-gray hover:text-brand-body"><ArrowLeft size={18} /></button>
+                <button onClick={() => setStep('search')} className="flex items-center gap-1.5 text-sm text-brand-gray hover:text-brand-body font-medium"><ArrowLeft size={16} /> Back</button>
                 <h2 className="text-xl font-bold text-brand-navy">Results for <span className="text-brand-green">"{featureName}"</span></h2>
               </div>
 
@@ -326,14 +333,14 @@ export default function Home() {
                   <div className="bg-brand-subtle border-b border-brand-border px-5 py-3 flex items-center gap-2">
                     <Wrench size={16} className="text-brand-green" />
                     <span className="font-semibold text-sm text-brand-body">Shortcut</span>
-                    <span className="ml-auto text-xs text-brand-gray">{epics.length} epic{epics.length !== 1 ? 's' : ''}, {stories.length} stor{stories.length !== 1 ? 'ies' : 'y'}</span>
+                    <span className="ml-auto text-xs text-brand-gray">{epics.length} epic{epics.length !== 1 ? 's' : ''}</span>
                   </div>
                   <div className="p-4 space-y-3 max-h-80 overflow-y-auto">
                     {shortcutError && (
                       <div className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded p-2">{shortcutError}</div>
                     )}
-                    {epics.length === 0 && stories.length === 0 && !shortcutError && (
-                      <p className="text-sm text-brand-gray text-center py-4">No results found</p>
+                    {epics.length === 0 && !shortcutError && (
+                      <p className="text-sm text-brand-gray text-center py-4">No epics found</p>
                     )}
                     {epics.map((epic) => (
                       <div key={epic.id} className="border border-brand-border rounded-lg p-3">
@@ -345,22 +352,6 @@ export default function Home() {
                           </div>
                           {epic.app_url && (
                             <a href={epic.app_url} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-green flex-shrink-0"><ExternalLink size={12} /></a>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    {stories.map((story) => (
-                      <div key={story.id} className="border border-brand-border rounded-lg p-3">
-                        <div className="flex items-start gap-2">
-                          <span className={`text-xs px-1.5 py-0.5 rounded font-medium mt-0.5 flex-shrink-0 ${story.story_type === 'bug' ? 'bg-red-100 text-red-700' : story.story_type === 'chore' ? 'bg-brand-subtle text-brand-gray' : 'bg-blue-100 text-blue-700'}`}>
-                            {story.story_type.toUpperCase()}
-                          </span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-brand-body truncate">{story.name}</p>
-                            {story.description && <p className="text-xs text-brand-gray mt-0.5 line-clamp-2">{story.description}</p>}
-                          </div>
-                          {story.app_url && (
-                            <a href={story.app_url} target="_blank" rel="noopener noreferrer" className="text-brand-gray hover:text-brand-green flex-shrink-0"><ExternalLink size={12} /></a>
                           )}
                         </div>
                       </div>
@@ -425,7 +416,7 @@ export default function Home() {
           {step === 'action' && (
             <div>
               <div className="flex items-center gap-3 mb-6">
-                <button onClick={() => setStep('results')} className="text-brand-gray hover:text-brand-body"><ArrowLeft size={18} /></button>
+                <button onClick={() => setStep('results')} className="flex items-center gap-1.5 text-sm text-brand-gray hover:text-brand-body font-medium"><ArrowLeft size={16} /> Back</button>
                 <div>
                   <h2 className="text-xl font-bold text-brand-navy">What would you like to create?</h2>
                   <p className="text-brand-gray text-sm mt-0.5">Feature: <span className="font-medium text-brand-green">{featureName}</span></p>
@@ -487,7 +478,7 @@ export default function Home() {
           {step === 'preview' && (
             <div className="bg-white rounded-2xl border border-brand-border shadow-sm overflow-hidden">
               <div className="border-b border-brand-border px-5 py-3 flex items-center gap-3">
-                <button onClick={() => setStep('action')} className="text-brand-gray hover:text-brand-body"><ArrowLeft size={18} /></button>
+                <button onClick={() => setStep('action')} className="flex items-center gap-1.5 text-sm text-brand-gray hover:text-brand-body font-medium"><ArrowLeft size={16} /> Back</button>
                 <div className="flex-1">
                   <h2 className="font-bold text-brand-navy">{ACTIONS.find(a => a.type === selectedAction)?.label}</h2>
                   <p className="text-xs text-brand-gray">Feature: {featureName}</p>
@@ -517,7 +508,37 @@ export default function Home() {
                   />
                 ) : (
                   <div className="prose-content max-h-[600px] overflow-y-auto">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{isEditing ? editContent : generatedContent}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{generatedContent}</ReactMarkdown>
+                  </div>
+                )}
+              </div>
+
+              {/* Additional instructions / regenerate */}
+              <div className="border-t border-brand-border p-5">
+                <button
+                  onClick={() => setShowPrompt(!showPrompt)}
+                  className="flex items-center gap-2 text-sm text-brand-gray hover:text-brand-body font-medium mb-3"
+                >
+                  <Edit3 size={14} />
+                  {showPrompt ? 'Hide instructions' : 'Add instructions & regenerate'}
+                  <ChevronRight size={14} className={`transition-transform ${showPrompt ? 'rotate-90' : ''}`} />
+                </button>
+                {showPrompt && (
+                  <div className="space-y-3">
+                    <textarea
+                      value={customPrompt}
+                      onChange={(e) => setCustomPrompt(e.target.value)}
+                      placeholder="e.g. Make it shorter, focus on enterprise buyers, use a more formal tone, highlight the ROI..."
+                      className="w-full h-24 border border-brand-border rounded-xl px-4 py-3 text-sm text-brand-body placeholder:text-brand-gray focus:outline-none focus:ring-2 focus:ring-brand-green resize-none"
+                    />
+                    <button
+                      onClick={handleGenerate}
+                      disabled={isGenerating}
+                      className="flex items-center gap-2 bg-brand-green text-white px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+                    >
+                      {isGenerating ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+                      Regenerate with instructions
+                    </button>
                   </div>
                 )}
               </div>
@@ -528,7 +549,7 @@ export default function Home() {
           {step === 'guide-review' && (
             <div>
               <div className="flex items-center gap-3 mb-6">
-                <button onClick={() => setStep('action')} className="text-brand-gray hover:text-brand-body"><ArrowLeft size={18} /></button>
+                <button onClick={() => setStep('action')} className="flex items-center gap-1.5 text-sm text-brand-gray hover:text-brand-body font-medium"><ArrowLeft size={16} /> Back</button>
                 <div>
                   <h2 className="text-xl font-bold text-brand-navy">Suggested User Guide Changes</h2>
                   <p className="text-brand-gray text-sm mt-0.5">{approvedChanges.size} of {guideChanges.length} changes approved — review and copy to Google Drive</p>
@@ -638,6 +659,12 @@ export default function Home() {
                   className="flex items-center gap-2 bg-brand-green text-white px-6 py-3 rounded-xl font-medium hover:opacity-90 transition-opacity"
                 >
                   <RefreshCw size={16} /> Start New Feature
+                </button>
+                <button
+                  onClick={() => setStep(selectedAction === 'update-userguide' ? 'guide-review' : 'preview')}
+                  className="flex items-center gap-2 border border-brand-border text-brand-body px-6 py-3 rounded-xl font-medium hover:bg-brand-subtle transition-colors"
+                >
+                  <ArrowLeft size={16} /> Back
                 </button>
                 <button
                   onClick={() => setStep('action')}

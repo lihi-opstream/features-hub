@@ -55,6 +55,6 @@ export interface GenerateRequest {
   type: ActionType;
   featureName: string;
   epics: ShortcutEpic[];
-  stories: ShortcutStory[];
   figmaFiles: FigmaFile[];
+  customPrompt?: string;
 }
