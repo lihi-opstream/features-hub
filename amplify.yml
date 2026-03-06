@@ -6,6 +6,7 @@ frontend:
         - npm ci
     build:
       commands:
+        - env | grep -E "ANTHROPIC_API_KEY|SHORTCUT_API_TOKEN|FIGMA_API_TOKEN|FIGMA_TEAM_ID|FIGMA_PROJECT_ID" >> .env.production
         - npm run build
   artifacts:
     baseDirectory: .next
