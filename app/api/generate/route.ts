@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { buildContentPrompt, buildGuideUpdatePrompt } from '@/lib/prompts';
-import type { GenerateRequest, GuideChange } from '@/types';
+import type { ActionType, GenerateRequest, GuideChange } from '@/types';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+// HTML content types generate large documents — use buffered (non-streaming) calls
+// to avoid Lambda timeout / buffering issues on Amplify SSR
+const HTML_TYPES: ActionType[] = ['marketing-email', 'onepager', 'blog-post', 'landing-page'];
 
 export async function POST(req: NextRequest) {
   const body: GenerateRequest = await req.json();
@@ -37,7 +41,6 @@ export async function POST(req: NextRequest) {
 
     let changes: GuideChange[] = [];
     try {
-      // Strip potential markdown fences
       const cleaned = text.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '').trim();
       changes = JSON.parse(cleaned);
     } catch {
@@ -47,12 +50,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ changes });
   }
 
-  // All other types: streaming text response
   const prompt = buildContentPrompt(type, featureName, epics, figmaFiles, customPrompt, guideExcerpt);
 
+  // HTML types: single buffered response (avoids Amplify streaming issues)
+  if (HTML_TYPES.includes(type)) {
+    const message = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 6000,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    const content = message.content[0].type === 'text' ? message.content[0].text : '';
+    if (!content.trim()) {
+      return NextResponse.json({ error: 'Generation returned empty content' }, { status: 500 });
+    }
+    return NextResponse.json({ content });
+  }
+
+  // Text types (linkedin-post, website-change): streaming for live preview
   const stream = client.messages.stream({
     model: 'claude-sonnet-4-6',
-    max_tokens: 8192,
+    max_tokens: 4096,
     messages: [{ role: 'user', content: prompt }],
   });
 

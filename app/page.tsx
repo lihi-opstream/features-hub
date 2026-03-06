@@ -175,17 +175,28 @@ export default function Home() {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.error ?? `API error ${res.status}`);
       }
-      if (!res.body) throw new Error('No response body');
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
+
       let content = '';
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        content += decoder.decode(value, { stream: true });
-        setGeneratedContent(content);
+
+      // HTML types return a buffered JSON response; text types stream
+      if (isHtmlType(selectedAction)) {
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        content = data.content ?? '';
+      } else {
+        if (!res.body) throw new Error('No response body');
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          content += decoder.decode(value, { stream: true });
+          setGeneratedContent(content);
+        }
       }
+
       if (!content.trim()) throw new Error('Generation returned empty content — check your API key and try again');
+      setGeneratedContent(content);
       setEditContent(content);
       setStep('preview');
     } catch (e) {
