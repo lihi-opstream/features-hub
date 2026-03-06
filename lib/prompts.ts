@@ -127,7 +127,7 @@ export function buildContentPrompt(
 ): string {
   const ctx = buildContext(featureName, epics, figmaFiles, guideExcerpt);
   const customNote = customPrompt ? `\n\nAdditional instructions: ${customPrompt}` : '';
-  const base = `You are a professional content creator for OpStream (${SITE_URL}), a product operations SaaS platform. Use the feature context below to generate specific, accurate, compelling content.\n\n${ctx}\n\n`;
+  const base = `You are a professional content creator for OpStream (${SITE_URL}), a product operations SaaS platform. Use the feature context below to generate specific, accurate, compelling content.\n\nIMPORTANT: The token [[LOGO]] is a special placeholder that will be replaced automatically after you respond. You MUST output it exactly as-is — do NOT replace, remove, or modify it.\n\n${ctx}\n\n`;
 
   switch (type) {
     case 'marketing-email':
