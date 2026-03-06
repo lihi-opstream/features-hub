@@ -34,6 +34,28 @@ function OpstreamLogo() {
   );
 }
 
+function playDoneSound() {
+  try {
+    const ctx = new AudioContext();
+    const times = [0, 0.15, 0.3];
+    const freqs = [880, 1100, 1320];
+    times.forEach((t, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freqs[i], ctx.currentTime + t);
+      gain.gain.setValueAtTime(0.25, ctx.currentTime + t);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.35);
+      osc.start(ctx.currentTime + t);
+      osc.stop(ctx.currentTime + t + 0.35);
+    });
+  } catch {
+    // AudioContext not available
+  }
+}
+
 function extractRelevant(text: string, query: string, maxLen: number): string {
   const lower = text.toLowerCase();
   const words = query.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
@@ -154,6 +176,7 @@ export default function Home() {
         if (data.error) throw new Error(data.error);
         setGuideChanges(data.changes ?? []);
         setApprovedChanges(new Set(data.changes.map((_: GuideChange, i: number) => i)));
+        playDoneSound();
         setStep('guide-review');
       } catch (e) {
         setSearchError(e instanceof Error ? e.message : 'Generation failed');
@@ -198,6 +221,7 @@ export default function Home() {
       if (!content.trim()) throw new Error('Generation returned empty content — check your API key and try again');
       setGeneratedContent(content);
       setEditContent(content);
+      playDoneSound();
       setStep('preview');
     } catch (e) {
       setSearchError(e instanceof Error ? e.message : 'Generation failed');
@@ -529,8 +553,13 @@ export default function Home() {
                   <Loader2 size={28} className="animate-spin text-brand-green" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-brand-navy">Generating content…</h2>
-                  <p className="text-brand-gray text-sm mt-1">Claude is working on your {ACTIONS.find(a => a.type === selectedAction)?.label}</p>
+                  <h2 className="text-xl font-bold text-brand-navy">
+                    {isHtmlType(selectedAction) ? 'Building your branded HTML…' : 'Generating content…'}
+                  </h2>
+                  <p className="text-brand-gray text-sm mt-1">
+                    Claude is working on your {ACTIONS.find(a => a.type === selectedAction)?.label}
+                    {isHtmlType(selectedAction) && ' — this may take a minute or two'}
+                  </p>
                 </div>
               </div>
               {generatedContent && !isHtmlType(selectedAction) && (
@@ -539,7 +568,7 @@ export default function Home() {
                 </div>
               )}
               {isHtmlType(selectedAction) && (
-                <p className="text-sm text-brand-gray text-center py-2">Building your branded HTML…</p>
+                <p className="text-xs text-brand-gray text-center py-2 opacity-60">You&apos;ll hear a chime when it&apos;s ready</p>
               )}
             </div>
           )}
