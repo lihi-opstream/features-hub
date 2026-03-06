@@ -227,9 +227,9 @@ export default function Home() {
         throw new Error(errData.error ?? `API error ${res.status}`);
       }
 
-      const content = await readStream(res);
+      const content = (await readStream(res)).trim();
 
-      if (!content.trim()) throw new Error('Generation returned empty content — check your API key and try again');
+      if (!content) throw new Error('Generation returned empty content — check your API key and try again');
       setGeneratedContent(content);
       setEditContent(content);
       playDoneSound();

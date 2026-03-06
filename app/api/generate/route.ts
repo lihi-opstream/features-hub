@@ -48,6 +48,8 @@ export async function POST(req: NextRequest) {
     const readable = new ReadableStream({
       async start(controller) {
         const enc = new TextEncoder();
+        // Immediate byte keeps the gateway connection alive while Claude starts thinking
+        controller.enqueue(enc.encode('\n'));
         try {
           for await (const event of stream) {
             if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
@@ -78,6 +80,8 @@ export async function POST(req: NextRequest) {
   const readable = new ReadableStream({
     async start(controller) {
       const enc = new TextEncoder();
+      // Immediate byte keeps the gateway connection alive while Claude starts thinking
+      controller.enqueue(enc.encode('\n'));
       try {
         for await (const event of stream) {
           if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
