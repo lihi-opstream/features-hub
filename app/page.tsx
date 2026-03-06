@@ -27,22 +27,35 @@ const STEPS = ['Search', 'Review', 'Choose Action', 'Generate'];
 
 function OpstreamLogo() {
   return (
-    <div className="flex items-center gap-2.5">
-      <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <div className="flex items-center gap-3">
+      {/* Icon: gradient rounded square with circular network symbol */}
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
         <defs>
-          <linearGradient id="logoGrad" x1="16" y1="0" x2="16" y2="32" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#1AA9DB" />
-            <stop offset="100%" stopColor="#2FBC88" />
+          <linearGradient id="opstreamGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#5DCCE8" />
+            <stop offset="100%" stopColor="#3CC88A" />
           </linearGradient>
         </defs>
-        <rect width="32" height="32" rx="8" fill="url(#logoGrad)" />
-        <path d="M16 7C11.03 7 7 11.03 7 16s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 14.5A5.5 5.5 0 1 1 16 10.5a5.5 5.5 0 0 1 0 11z" fill="white" fillOpacity="0.9" />
-        <circle cx="16" cy="16" r="3" fill="white" />
+        {/* Rounded square background */}
+        <rect width="40" height="40" rx="10" fill="url(#opstreamGrad)" />
+        {/* Outer circle */}
+        <circle cx="20" cy="20" r="11" stroke="white" strokeWidth="1.8" fill="none" />
+        {/* 3 nodes at 270° (top), 30° (bottom-right), 150° (bottom-left) */}
+        {/* Top node: (20, 9) */}
+        <circle cx="20" cy="9" r="2.6" fill="white" />
+        {/* Bottom-right node: (20 + 11*cos30°, 20 + 11*sin30°) = (29.53, 25.5) */}
+        <circle cx="29.5" cy="25.5" r="2.6" fill="white" />
+        {/* Bottom-left node: (20 - 11*cos30°, 20 + 11*sin30°) = (10.47, 25.5) */}
+        <circle cx="10.5" cy="25.5" r="2.6" fill="white" />
+        {/* Lines connecting the 3 nodes */}
+        <line x1="20" y1="9" x2="29.5" y2="25.5" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
+        <line x1="20" y1="9" x2="10.5" y2="25.5" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
+        <line x1="29.5" y1="25.5" x2="10.5" y2="25.5" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
       </svg>
-      <div>
-        <span className="text-base font-bold text-brand-navy leading-none">Opstream</span>
-        <span className="block text-xs text-brand-gray leading-none mt-0.5">Features Hub</span>
-      </div>
+      {/* Wordmark: "opstream" in dark navy, bold lowercase */}
+      <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: '22px', color: '#171C33', letterSpacing: '-0.3px', lineHeight: 1 }}>
+        opstream
+      </span>
     </div>
   );
 }
