@@ -158,6 +158,10 @@ Use this exact template — fill in every [bracketed placeholder] with specific,
   .cta { display: inline-block; background: #59a985; color: #fff; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 15px; text-decoration: none; }
   .footer { background: #FAFBFC; border-top: 1px solid #E8EAED; padding: 20px 40px; text-align: center; color: #9BA0AB; font-size: 13px; }
   .footer a { color: #9BA0AB; text-decoration: none; }
+  .visual { background: #F4F5F7; border-radius: 10px; overflow: hidden; border: 1px solid #E8EAED; margin: 24px 0; }
+  .visual-bar { background: #E8EAED; padding: 8px 14px; display: flex; align-items: center; gap: 5px; }
+  .visual-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .visual-content { padding: 18px; font-size: 13px; background: #fff; }
 </style>
 </head>
 <body>
@@ -171,6 +175,19 @@ Use this exact template — fill in every [bracketed placeholder] with specific,
     <h1>[Compelling benefit-focused headline about ${featureName} — not "Announcing", focus on the outcome]</h1>
     <p>[2-3 sentence opening: hook, what the feature does, why it matters to them specifically]</p>
     <p>[1-2 sentences expanding the value — specific to their daily workflow]</p>
+
+    <div class="visual">
+      <div class="visual-bar">
+        <span class="visual-dot" style="background:#ff6059"></span>
+        <span class="visual-dot" style="background:#ffbd2e"></span>
+        <span class="visual-dot" style="background:#28c840"></span>
+        <span style="flex:1;background:#fff;border-radius:3px;height:16px;margin:0 8px;opacity:0.7;font-size:10px;line-height:16px;padding:0 8px;color:#9BA0AB">opstream.ai/dashboard</span>
+      </div>
+      <div class="visual-content" style="min-height:160px;">
+        [Create a realistic mini-UI mock of ${featureName} using styled divs — e.g. a small table with status badges, metric cards, or a workflow list. Use brand colors: #59a985 (green), #1AA9DB (blue), #171C33 (dark), #F4F5F7 (bg). No placeholder text — show realistic data.]
+      </div>
+    </div>
+
     <div class="benefits">
       <h3>What you can do now</h3>
       <div class="benefit"><span class="check">✓</span><span>[Concrete benefit 1 — measurable outcome]</span></div>
@@ -379,6 +396,12 @@ Output ONLY valid, complete HTML — no markdown fences, no commentary.
   .cta-btn { display: inline-block; background: #59a985; color: #fff; padding: 14px 28px; border-radius: 8px; font-weight: 600; text-decoration: none; }
   footer { background: #171C33; color: #9BA0AB; padding: 32px 0; text-align: center; font-size: 14px; }
   footer a { color: #9BA0AB; }
+  .hero-visual { background: #F4F5F7; border-radius: 12px; overflow: hidden; border: 1px solid #E8EAED; margin: 40px 0; }
+  .hero-visual-bar { background: #E8EAED; padding: 10px 16px; display: flex; align-items: center; gap: 6px; }
+  .hero-visual-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .hero-visual-content { padding: 24px; background: #fff; font-size: 13px; }
+  .inline-visual { background: #F4F5F7; border-radius: 10px; padding: 24px; margin: 32px 0; border: 1px solid #E8EAED; font-size: 13px; }
+  .inline-visual-label { font-size: 11px; font-weight: 600; color: #59a985; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; }
 </style>
 </head>
 <body>
@@ -404,11 +427,28 @@ Output ONLY valid, complete HTML — no markdown fences, no commentary.
 
   [Write 2-3 opening paragraphs: start with a relatable problem or industry insight, build tension, then introduce ${featureName} as the answer. Make it engaging and specific.]
 
+  <div class="hero-visual">
+    <div class="hero-visual-bar">
+      <span class="hero-visual-dot" style="background:#ff6059"></span>
+      <span class="hero-visual-dot" style="background:#ffbd2e"></span>
+      <span class="hero-visual-dot" style="background:#28c840"></span>
+      <span style="flex:1;background:#fff;border-radius:4px;height:18px;margin:0 8px;opacity:0.7;font-size:11px;line-height:18px;padding:0 8px;color:#9BA0AB">opstream.ai/dashboard</span>
+    </div>
+    <div class="hero-visual-content" style="min-height:220px;">
+      [Generate a realistic, fully styled HTML UI mock of ${featureName} — use tables, status badges, metric cards, or workflow panels with real-looking data. Use brand colors: #59a985, #1AA9DB, #171C33, #F4F5F7. This is the hero image of the article — make it impressive and visually rich.]
+    </div>
+  </div>
+
   <h2>[What Is ${featureName}?]</h2>
   [2 paragraphs clearly explaining what the feature is and what it does]
 
   <h2>Key Capabilities</h2>
   [3 sub-sections with h3 headers, each covering a key capability of the feature based on the epic context]
+
+  <div class="inline-visual">
+    <div class="inline-visual-label">${featureName} in action</div>
+    [A second, different HTML UI mock showing a specific capability from the "Key Capabilities" section above — e.g. a config panel, a chart, a comparison table, or an alert/notification UI. Use the same brand colors. Make it specific to the feature context.]
+  </div>
 
   <h2>Real-World Use Cases</h2>
 
